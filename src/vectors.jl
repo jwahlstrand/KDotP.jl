@@ -3,6 +3,8 @@ export KVector
 KDir = SVector{3,Integer}
 KVector = SVector{3,Float64}
 
+####### efg <=> xyz
+
 function three_vector_e(g::KVector)
     if(g[1]==0.0 && g[3]==0.0)
         return KVector(0.0,0.0,1.0)
@@ -40,4 +42,3 @@ function distance_between_lines(x0,x1,n0,n1)
     n1cn0 = cross(n1, n0)
     return abs(dot(x1-x0,n1cn0))/norm(n1cn0)
 end
-

@@ -1,3 +1,13 @@
+# 14 band models for zincblende semiconductors
+
+# Papers:
+# TODO: list relevant references from Bhat and Sipe
+#
+# Notation is from Bhat and Sipe, arXiv:cond-mat/0601277
+
+# Models defined:
+# Zincblende14nr: 14 band model with no remote band parameters
+# Zincblende14: full 14 band model
 
 struct Zincblende14nr <: Model end # put parameters in struct?
 struct Zincblende14 <: Model
@@ -9,23 +19,35 @@ struct Zincblende14 <: Model
     d2Hdydz::Array{Complex{Float64},2}
 end
 
-const P0 = 10.30
-const Q = 7.70
-const P0p = 3.00
-const Eg = 1.519
-const E0p = 4.488
-const D0 = 0.341
-const D0p = 0.171
+# All energies are in eV
+# All wavevectors are in 1/Å
 
+const P0 = 10.30 # eV ⋅ Å
+const Q = 7.70 # eV ⋅ Å
+const P0p = 3.00 # eV ⋅ Å
+
+const Eg = 1.519 # eV
+const E0p = 4.488 # eV
+const D0 = 0.341 # eV
+const D0p = 0.171 # eV
+
+# Luttinger parameters (dimensionless)
 const G1L = 7.797
 const G2L = 2.458
 const G3L = 3.299
+
+# conduction band curvature
 const F = -1.055
+
+# spin related parameters
 const db = -0.061
-const Ck = -0.0034
+const Ck = -0.0034 # eA ⋅ Å
 
-const epsilon = 0.0
+# ϵ for splitting degenerate bands (probably only useful for an 8 band model)
+const ϵ = 0.0
 
+# Matrix elements at the Γ point
+# Only one triangle is filled in because these are Hermitian
 px=zeros(Complex{Float64},14,14)
 
 px[1,4]=sqrt(3)/sqrt(2)/3*P0p
@@ -105,6 +127,9 @@ pz[10,13]=2*sqrt(3)/sqrt(2)/3*Q
 
 const Pz = Hermitian(pz)
 
+# Hamiltonians and derivatives
+
+## Zincblende14nr
 function H(m::Zincblende14nr,k)
     h=zeros(Complex{Float64},14,14)
 
@@ -114,23 +139,23 @@ function H(m::Zincblende14nr,k)
     G1 = E1+D0p
 
     h[1,1]=h[8,8]=G1
-    h[2,2]=h[9,9]=G1+epsilon
+    h[2,2]=h[9,9]=G1+ϵ
 
     h[3,3]=E1
-    h[10,10]=E1+epsilon
+    h[10,10]=E1+ϵ
 
     h[4,4]=0.0
-    h[11,11]=epsilon
+    h[11,11]=ϵ
 
     h[5,5]=-Eg
-    h[12,12]=-Eg+epsilon
+    h[12,12]=-Eg+ϵ
 
     h[6,6]=-Eg
-    h[13,13]=-Eg+epsilon
+    h[13,13]=-Eg+ϵ
 
     h[7,7]=G0
-    h[14,14]=G0+epsilon
-    
+    h[14,14]=G0+ϵ
+
     Rk2=R*sum(abs2,k)
 
     for i=1:14
@@ -141,32 +166,18 @@ function H(m::Zincblende14nr,k)
     return Hermitian(h)
 end
 
-function dHdx!(h,m::Zincblende14nr,k)
+function dHdq!(h,m::Zincblende14nr,kq,Pq)
     fill!(h,0.0)
 
-    h.+=Px
+    h.+=Pq
     for i=1:14
-        h[i,i]+=2*R*k[1]
+        h[i,i]+=2*R*kq
     end
 end
 
-function dHdy!(h,m::Zincblende14nr,k)
-    fill!(h,0.0)
-
-    h.+=Py
-    for i=1:14
-        h[i,i]+=2*R*k[2]
-    end
-end
-
-function dHdz!(h,m::Zincblende14nr,k)
-    fill!(h,0.0)
-
-    h.+=Pz
-    for i=1:14
-        h[i,i]+=2*R*k[3]
-    end
-end
+dHdx!(h,m::Zincblende14nr,k) = dHdq!(h,m,k[1],Px)
+dHdy!(h,m::Zincblende14nr,k) = dHdq!(h,m,k[2],Py)
+dHdz!(h,m::Zincblende14nr,k) = dHdq!(h,m,k[3],Pz)
 
 nbands(m::Zincblende14nr)=14
 valence_bands(m::Zincblende14nr) = 1:6
@@ -174,6 +185,7 @@ conduction_bands(m::Zincblende14nr) = 7:8
 
 export H,dHdx,dHdy,dHdz
 
+## Zincblende14
 nbands(m::Zincblende14)=14
 valence_bands(m::Zincblende14) = 1:6
 conduction_bands(m::Zincblende14) = 7:8
@@ -188,7 +200,7 @@ function H(m::Zincblende14,k)
     kx=k[1]
     ky=k[2]
     kz=k[3]
-    
+
     EP=P0^2/R
     EQ=Q^2/R
     g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
@@ -207,22 +219,22 @@ function H(m::Zincblende14,k)
     E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*db*db/9)
 
     h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+epsilon
+    h[2,2]=h[9,9]=G1p+Ek+ϵ
 
     h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+epsilon
+    h[10,10]=E1p+Ek+ϵ
 
     h[4,4]=2*Ek*F+Ek
-    h[11,11]=2*Ek*F+Ek+epsilon
+    h[11,11]=2*Ek*F+Ek+ϵ
 
     h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+epsilon
+    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+ϵ
 
     h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+epsilon
+    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+ϵ
 
     h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+epsilon
+    h[14,14]=G0p-Ek*g1+ϵ
 
     kp = complex(kx,ky)/sqrt(2)
     km=conj(kp)
@@ -246,11 +258,11 @@ function H(m::Zincblende14,k)
     h[8,12]=h[1,5]
     h[9,13]=h[1,5]
     h[10,14]=h[2,6]
-    
+
     h[12,13]=sqrt(3)*R*(kx+ky)*(ky-kx)*g2-Ck*kz-1im*sqrt(3)*R*kx*ky*2.0*g3
     h[12,14]=h[4,6]
     h[13,14]=sqrt(3)*sqrt(2)*R*(kx+ky)*(ky-kx)*g2+1im*sqrt(3)*sqrt(2)*R*kx*ky*2.0*g3
-    
+
     h.=h .+ Px .* k[1] .+ Py .* k[2] .+ Pz .* k[3]
 
     return Hermitian(h)
@@ -273,7 +285,7 @@ function d2Hdx2()
     EQ=Q^2/R
     g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
     g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-    
+
     fill_diags(h)
     h[5,5]=-2*R*(g1-g2)
     h[12,12]=h[5,5]
@@ -295,7 +307,7 @@ function d2Hdxdy()
     EP=P0^2/R
     EQ=Q^2/R
     g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-    
+
     h[5,6]=-1im*sqrt(3)*R*2*g3
     h[6,7]=1im*sqrt(3)*sqrt(2)*R*2*g3
     h[12,13]=-1im*sqrt(3)*R*2*g3
@@ -308,7 +320,7 @@ function d2Hdxdz()
     EP=P0^2/R
     EQ=Q^2/R
     g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-    
+
     h[5,13]=2*sqrt(3)*g3*R
     h[5,14]=6*g3*R/sqrt(2)
     h[6,12]=2*sqrt(3)*g3*R
@@ -324,7 +336,7 @@ function d2Hdy2()
     EQ=Q^2/R
     g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
     g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-    
+
     fill_diags(h)
     h[5,5]=-2*R*(g1-g2)
     h[12,12]=h[5,5]
@@ -347,7 +359,7 @@ function d2Hdydz()
     EP=P0^2/R
     EQ=Q^2/R
     g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-    
+
     h[5,13]=2im*sqrt(3)*g3*R
     h[5,14]=-6im*g3*R/sqrt(2)
     h[6,12]=2im*sqrt(3)*g3*R
@@ -363,7 +375,7 @@ function d2Hdz2()
     EQ=Q^2/R
     g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
     g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-    
+
     fill_diags(h)
     h[5,5]=-2*R*(g1-g2)-6*R*g2
     h[12,12]=h[5,5]
@@ -424,54 +436,9 @@ function dHdz!(h,m::Zincblende14,k)
     axpy!(k[3],m.d2Hdz2,h)
 end
 
-###################
-# Trivial 2-band model for checking output with analytical solutions
-
-struct Parabolic <: Model end
-
-nbands(m::Parabolic)=2
-valence_bands(m::Parabolic) = 1:1
-conduction_bands(m::Parabolic) = 2:2
-
-function H(m::Parabolic,k)
-    h=zeros(Complex{Float64},2,2)
-    k2=k[1]^2+k[2]^2+k[3]^2
-    h[1,1]=-Eg-R/0.45*k2
-    h[2,2]=R/0.08*k2
-    Hermitian(h)
-end
-
-function dHdx!(h,m::Parabolic,k)
-    fill!(h,0.0)
-
-    h[1,2]=P0
-    h[2,1]=P0
-
-    h[1,1]=-2*R*k[1]/0.45
-    h[2,2]=2*R*k[1]/0.08
-end
-
-function dHdy!(h,m::Parabolic,k)
-    fill!(h,0.0)
-
-    h[1,2]=complex(0.0,P0)
-    h[2,1]=complex(0.0,-P0)
-
-    h[1,1]=-2*R*k[2]/0.45
-    h[2,2]=2*R*k[2]/0.08
-end
-
-function dHdz!(h,m::Parabolic,k)
-    fill!(h,0.0)
-
-    h[1,2]=P0
-    h[2,1]=P0
-
-    h[1,1]=-2*R*k[3]/0.45
-    h[2,2]=2*R*k[3]/0.08
-end
-
 const origin = KVector(0.,0.,0.)
+
+# construct list of lines of degeneracy for both models
 degen_list=KVector[]
 push!(degen_list,KVector(1.0,0.0,0.0))
 push!(degen_list,KVector(0.0,1.0,0.0))
@@ -487,8 +454,4 @@ end
 
 function trajectory_intersects_bad(m::Zincblende14nr, kperp, g)
     return any(bad->distance_between_lines(kperp,origin,g,bad)<1e-4,degen_list)
-end
-
-function trajectory_intersects_bad(m::Parabolic, kperp, g)
-    return false
 end

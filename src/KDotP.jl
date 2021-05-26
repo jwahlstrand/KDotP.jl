@@ -7,7 +7,7 @@ export cfunc,calc_w_phi_coeffs, calc_c_coeffs
 include("vectors.jl")
 include("transforms.jl")
 
-const R = 3.80998
+const R = 3.80998 # ħ²/2mₑ in eV ⋅ Å²
 
 export Model
 
@@ -37,6 +37,7 @@ end
 export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe
 
 include("zincblende.jl")
+include("parabolic.jl")
 
 ########### Coefficients ODE solving
 
@@ -196,7 +197,7 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
 
     dks=ks[2]-ks[1]
 
-    sol_pos = solve(prob,BS3(),reltol=5e-7,abstol=abstol,saveat=dks)
+    sol_pos = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_pos = [sol_pos[q] for q=1:length(sol_pos)]
 
     pars=ode_params(m,kperp2,direction,false,n)
@@ -214,6 +215,7 @@ end
 
 export get_energies,get_elements,get_coeffs
 
+"get all band energies from the output of calc_c_coeffs()"
 function get_energies(c::AbstractArray,krange)
     [c[q][2*14*14+i] for i=1:14, q=1:length(krange)]
 end
@@ -224,10 +226,12 @@ end
 
 export C_from_c
 
+"extract complex C matrix from real c vector"
 function C_from_c(c)
     cc=reshape(reinterpret(Complex{Float64},@view c[1:2*14*14]),(14,14))
 end
 
+"extract C row elements from the ith column from the output of calc_c_coeffs()"
 function get_elements(c::AbstractArray,krange,i)
     [C_from_c(c[q])[i,j] for j=1:14, q=1:length(krange)]
 end
@@ -236,6 +240,7 @@ function get_elements(s::Function,krange,i)
     [C_from_c(s(k))[i,j] for j=1:14, k=krange]
 end
 
+"extract C matrices from the output of calc_c_coeffs()"
 function get_coeffs(c::AbstractArray,krange)
     [C_from_c(c[q])[i,j] for i=1:14, j=1:14, q=1:length(krange)]
 end
@@ -249,14 +254,15 @@ end
 export matrix_element
 
 struct matrix_element
-    k::SVector{3,Float64}
-    kc::Float64
+    k::SVector{3,Float64} # the k vector for this point (in efg basis)
+    kc::Float64           # the kc (k_parallel) value for this point
     energies::Array{Float64,1}
     W::Array{Complex{Float64},3}
 end
 
 export matrix_element_from_coeffs
 
+"Calculate Wx, Wy, and Wz matrix elements from a c vector"
 function matrix_element_from_coeffs(m::Model,k,c::Array{Float64,1},kc::Float64)
     energies=c[2*14*14+1:2*14*14+14]
 

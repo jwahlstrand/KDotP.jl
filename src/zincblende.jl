@@ -170,6 +170,9 @@ Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::Ab
 
 const ϵ = 0.0
 
+# Hamiltonians and derivatives
+
+## Zincblende14nr
 function H(m::Zincblende14nr,k)
     h=zeros(Complex{Float64},14,14)
 
@@ -241,12 +244,12 @@ function H(m::Semiconductor14nr,k)
     return Hermitian(h)
 end
 
-function dHdx!(h,m::Zincblende14nr,k)
+function dHdq!(h,m::Zincblende14nr,kq,Pq)
     fill!(h,0.0)
 
-    h.+=Px
+    h.+=Pq
     for i=1:14
-        h[i,i]+=2*R*k[1]
+        h[i,i]+=2*R*kq
     end
 end
 function dHdx!(h,m::Semiconductor14nr,k)
@@ -306,6 +309,7 @@ conduction_bands(m::Semiconductor14nr) = 7:8
 
 export H,dHdx,dHdy,dHdz
 
+## Zincblende14
 nbands(m::Zincblende14)=14
 valence_bands(m::Zincblende14) = 1:6
 conduction_bands(m::Zincblende14) = 7:8
@@ -825,6 +829,8 @@ function dHdz!(h,m::Parabolic,k)
 end
 
 const origin = KVector(0.,0.,0.)
+
+# construct list of lines of degeneracy for both models
 degen_list=KVector[]
 push!(degen_list,KVector(1.0,0.0,0.0))
 push!(degen_list,KVector(0.0,1.0,0.0))

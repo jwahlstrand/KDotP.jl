@@ -168,22 +168,7 @@ function Semiconductor14nr(params::Parameters)
 end
 Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14nr(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 
-#=const P0 = 10.30
-const Q = 7.70
-const P0p = 3.00
-const Eg = 1.519
-const E0p = 4.488
-const D0 = 0.341
-const D0p = 0.171
-
-const G1L = 7.797
-const G2L = 2.458
-const G3L = 3.299
-const F = -1.055
-const db = -0.061
-const Ck = -0.0034=#
-
-const epsilon = 0.0
+const ϵ = 0.0
 
 function H(m::Zincblende14nr,k)
     h=zeros(Complex{Float64},14,14)
@@ -194,22 +179,22 @@ function H(m::Zincblende14nr,k)
     G1 = E1+D0p
 
     h[1,1]=h[8,8]=G1
-    h[2,2]=h[9,9]=G1+epsilon
+    h[2,2]=h[9,9]=G1+ϵ
 
     h[3,3]=E1
-    h[10,10]=E1+epsilon
+    h[10,10]=E1+\ϵ
 
     h[4,4]=0.0
-    h[11,11]=epsilon
+    h[11,11]=\ϵ
 
     h[5,5]=-Eg
-    h[12,12]=-Eg+epsilon
+    h[12,12]=-Eg+\ϵ
 
     h[6,6]=-Eg
-    h[13,13]=-Eg+epsilon
+    h[13,13]=-Eg+\ϵ
 
     h[7,7]=G0
-    h[14,14]=G0+epsilon
+    h[14,14]=G0+\ϵ
 
     Rk2=R*sum(abs2,k)
 
@@ -229,22 +214,22 @@ function H(m::Semiconductor14nr,k)
     G1 = E1+m.params.D0p
 
     h[1,1]=h[8,8]=G1
-    h[2,2]=h[9,9]=G1+epsilon
+    h[2,2]=h[9,9]=G1+\ϵ
 
     h[3,3]=E1
-    h[10,10]=E1+epsilon
+    h[10,10]=E1+\ϵ
 
     h[4,4]=0.0
-    h[11,11]=epsilon
+    h[11,11]=\ϵ
 
     h[5,5]=-m.params.Eg
-    h[12,12]=-m.params.Eg+epsilon
+    h[12,12]=-m.params.Eg+\ϵ
 
     h[6,6]=-m.params.Eg
-    h[13,13]=-m.params.Eg+epsilon
+    h[13,13]=-m.params.Eg+\ϵ
 
     h[7,7]=G0
-    h[14,14]=G0+epsilon
+    h[14,14]=G0+\ϵ
 
     Rk2=R*sum(abs2,k)
 
@@ -354,22 +339,22 @@ function H(m::Zincblende14,k)
     E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*db*db/9)
 
     h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+epsilon
+    h[2,2]=h[9,9]=G1p+Ek+\ϵ
 
     h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+epsilon
+    h[10,10]=E1p+Ek+\ϵ
 
     h[4,4]=2*Ek*F+Ek
-    h[11,11]=2*Ek*F+Ek+epsilon
+    h[11,11]=2*Ek*F+Ek+\ϵ
 
     h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+epsilon
+    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+\ϵ
 
     h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+epsilon
+    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+\ϵ
 
     h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+epsilon
+    h[14,14]=G0p-Ek*g1+\ϵ
 
     kp = complex(kx,ky)/sqrt(2)
     km=conj(kp)
@@ -432,22 +417,22 @@ function H(m::Semiconductor14,k)
     E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*m.params.db*m.params.db/9)
 
     h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+epsilon
+    h[2,2]=h[9,9]=G1p+Ek+\ϵ
 
     h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+epsilon
+    h[10,10]=E1p+Ek+\ϵ
 
     h[4,4]=2*Ek*m.params.F+Ek
-    h[11,11]=2*Ek*m.params.F+Ek+epsilon
+    h[11,11]=2*Ek*m.params.F+Ek+\ϵ
 
     h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+epsilon
+    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+\ϵ
 
     h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+epsilon
+    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+\ϵ
 
     h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+epsilon
+    h[14,14]=G0p-Ek*g1+\ϵ
 
     kp = complex(kx,ky)/sqrt(2)
     km=conj(kp)

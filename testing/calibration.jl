@@ -14,7 +14,7 @@ a2=init_spectrum2(oaxis)
 
 println("init spectrum")
 
-m=Parabolic()
+m=GaAs().parabolic
 
 kx=0.0
 ky=0.0
@@ -34,10 +34,10 @@ incr_absorption!(a2,m,d)
 #display(plot(a.omega,real(a.v[:,1,1]/2.2918),xlims=(1.3,2.3),label="calc",layout=2))
 display(plot(a2.omega,real(a2.v[:,3,3,3,3]),label="calc"))
 
-P0=10.3
+P0=m.params.P0
 μ=0.068
 R=3.80998
-Eg=1.519
+Eg=m.params.Eg
 
 function one_traj(ħω)
     real(P0^2*μ^0.5/R^0.5/ħω^2*(complex(ħω-Eg))^-0.5)
@@ -66,7 +66,7 @@ for kx=-0.05:0.0005:0.06
         if s==nothing
             continue
         end
-        
+
         l=matrix_element_list(m,kperp,kdir,ks,s)
         d=calc_v(l,KDotP.valence_bands(m),KDotP.conduction_bands(m))
         incr_absorption!(a,m,d)
@@ -74,6 +74,6 @@ for kx=-0.05:0.0005:0.06
     #display(plot(a.omega,real(a.v[:,1,1])/2.2918*0.0005^2*2,xlims=(1.3,2.3),label="calc"))
     #display(plot!(a.omega,one_photon_abs.(a.omega)))
 
-    
+
 end
 end

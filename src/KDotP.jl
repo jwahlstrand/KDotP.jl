@@ -4,6 +4,9 @@ using LinearAlgebra, OrdinaryDiffEq, StaticArrays
 
 export cfunc,calc_w_phi_coeffs, calc_c_coeffs
 
+# Approach is based on Wahlstrand and Sipe, Phys. Rev. B 82, 075206 (2010).
+# This paper is referred to in comments below as PRB10.
+
 include("vectors.jl")
 include("transforms.jl")
 
@@ -40,13 +43,30 @@ include("zincblende.jl")
 
 ########### Coefficients ODE solving
 
+# We calculate the "coefficients" matrix Dₘₙ(k⟂;kc), defined in PRB10 in Sec.
+# IIIB, along a line in the Brillouin zone at a fixed k⟂. Defining g as the
+# direction we are calculating along, the line along which matrix elements are
+# calculated is k⟂ + kc g. Band energies ħωₘ(k⟂;kc) are calculated
+# simultaneously.
+
+# These can be used to find velocity matrix elements at any kc from the velocity
+# matrix elements at kc = 0 using Eq. (76). The differential equation we solve
+# to find Dₘₙ(k⟂;kc) is Eq. (75).
+
+# In the calculation, we use a real vector of length 2*N²+N, containing the
+# flattened D matrix followed by a vector of band energies.
+
+# The direction along which we calculate is g, and we define perpendicular e and
+# f vectors to form a basis. In the calculation, k⟂ is specified in efg basis,
+# while g is specified in the xyz basis.
+
 struct ode_params
     m::Model
-    kperp::SVector{3,Float64}
-    dir::SVector{3,Float64}
-    pos::Bool
-    wc::Array{Complex{Float64},2}
-    W::Array{Complex{Float64},2}
+    kperp::SVector{3,Float64} # kperp in the efg basis
+    dir::SVector{3,Float64}  # g direction
+    pos::Bool  # whether we are solving in the +kc or -kc direction
+    wc::Array{Complex{Float64},2} # pre-allocated matrix
+    W::Array{Complex{Float64},2}  # pre-allocated matrix for storing the matrix elements in the g direction
     ode_params(m,kperp,dir,pos,n)=new(m,kperp,dir,pos,zeros(Complex{Float64},n,n),zeros(Complex{Float64},n,n))
 end
 
@@ -62,16 +82,13 @@ function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float6
     w=p.dir[1]*dHdx(p.m,k)+p.dir[2]*dHdy(p.m,k)+p.dir[3]*dHdz(p.m,k)
     p.wc .= w
 
-    # 3 allocs here
     cc=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
 
     fill!(p.W,0.0)
     matrix_transform!(p.W,cc,p.wc)
 
-    # 1 alloc here
     vcc=@view du[1:2*N^2] # slicing creates a copy by default
 
-    # 2 allocs here
     cdu=reshape(reinterpret(Complex{Float64},vcc),(N,N))
     cdu.=0.0
 
@@ -100,6 +117,7 @@ end
 
 export initial_c
 
+# the initial matrix Dₘₙ(k⟂;0) is found by diagonalizing the hamiltonian at k⟂
 function initial_c(h)
     n=size(h)[1]
     eigval, eigvec = eigen(h)
@@ -117,14 +135,11 @@ function initial_c(h)
     c
 end
 
+# maximum kc to calculate - may vary by model so we should allow setting this
 const KCMAX=0.5
 
 # this function calculates a unitary matrix that can be used to calculate matrix elements along a direction,
-# returning a function that gives the matrix as a function at a given kc
-
-# confusing but simplifies things:  kperp is in efg basis, direction in xyz basis
-# g is the direction of the field.
-
+# returning a function that gives the matrix at a given kc
 function calc_w_phi_coeffs(m::Model, kperp, direction; abstol=5e-7, KCMX=0.5)
     kperp2 = efg_kperp(kperp,direction)
 
@@ -167,15 +182,10 @@ end
 
 # this function calculates a unitary matrix that can be used to calculate matrix elements along a direction,
 # returning a list of the matrices at values of kc given in ks
-
-# confusing but simplifies things:  kperp is in efg basis, direction in xyz basis
-# g is the direction of the field.
-
 function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
     kperp2 = efg_kperp(kperp,direction)
 
-    # eventually, split ks into positive and negative parts
-
+    # if this goes through a degeneracy, just skip it
     if trajectory_intersects_bad(m, kperp2, direction)
         return nothing
     end
@@ -186,12 +196,13 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
 
     c=initial_c(h)
 
-    # make a copy for when we go negative
+    # make a copy for when we go negative (check if this is really necessary)
 
     cinit = copy(c)
 
     pars=ode_params(m,kperp2,direction,true,n)
 
+    # first we solve from 0 to positive values
     prob = ODEProblem(cfunc,c,(0.0,ks[end]),pars)
 
     dks=ks[2]-ks[1]
@@ -203,6 +214,7 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
 
     c = copy(cinit)
 
+    # next we solve from 0 to negative values
     prob = ODEProblem(cfunc,c,(0.0,-ks[1]),pars)
     sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_neg = [sol_neg[q] for q=2:length(sol_neg)]
@@ -250,6 +262,11 @@ end
 
 ##### Matrix elements
 
+# structure holding band energies and Wx, Wy, and Wz matrix elements at a given
+# k = k⟂ + kc g
+
+# W matrix elements are velocity matrix elements -- see Sec. IIIB of PRB10
+
 export matrix_element
 
 struct matrix_element
@@ -285,6 +302,7 @@ end
 
 export matrix_element_list
 
+# get a full list of matrix elements along the line
 function matrix_element_list(m,kperp,kdir,kcrange,s::Function)
     kperp2 = efg_kperp(kperp,kdir)
     [matrix_element_from_coeffs(m,kperp2+kc*kdir,s(kc),kc) for kc in kcrange]
@@ -349,6 +367,11 @@ end
 
 const default_Nkc=16384
 
+######### Absorption calculations
+
+# struct containing velocity matrix elements and energy difference between two
+# particular bands
+
 struct v_cv
     v::Array{Complex{Float64},2}
     o::Array{Float64,1}
@@ -359,7 +382,7 @@ end
 
 export calc_v
 
-# calculates v_{cv}(k) [Used in Eq. (61) in PRB (2010)]
+# calculates v_{cv}(k) [Used in Eq. (61) in PRB10]
 function calc_v(kperp,kdir,s::Function,i::Integer,j::Integer;Nkc=default_Nkc)
     dkc=2*KCMAX/Nkc
     denom=KCMAX^4
@@ -377,7 +400,7 @@ function calc_v(kperp,kdir,s::Function,i::Integer,j::Integer;Nkc=default_Nkc)
         a = me.W[i,j,1]
         b = me.energies[j] - me.energies[i]
         o[q]=b
-        damp = exp(-4*abs(kc)^4/denom)
+        damp = exp(-4*abs(kc)^4/denom) # window to remove artifacts from FFT (used in FKE calculation)
 
         x[q]=a*damp
 
@@ -480,7 +503,7 @@ end
 export absorption_spectrum
 
 struct absorption_spectrum
-    omega::Array{Float64,1}
+    omega::Array{Float64,1} # frequency (really in eV)
     v::Array{Complex{Float64},3}
 end
 

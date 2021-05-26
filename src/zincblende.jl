@@ -182,19 +182,19 @@ function H(m::Zincblende14nr,k)
     h[2,2]=h[9,9]=G1+ϵ
 
     h[3,3]=E1
-    h[10,10]=E1+\ϵ
+    h[10,10]=E1+ϵ
 
     h[4,4]=0.0
-    h[11,11]=\ϵ
+    h[11,11]=ϵ
 
     h[5,5]=-Eg
-    h[12,12]=-Eg+\ϵ
+    h[12,12]=-Eg+ϵ
 
     h[6,6]=-Eg
-    h[13,13]=-Eg+\ϵ
+    h[13,13]=-Eg+ϵ
 
     h[7,7]=G0
-    h[14,14]=G0+\ϵ
+    h[14,14]=G0+ϵ
 
     Rk2=R*sum(abs2,k)
 
@@ -214,22 +214,22 @@ function H(m::Semiconductor14nr,k)
     G1 = E1+m.params.D0p
 
     h[1,1]=h[8,8]=G1
-    h[2,2]=h[9,9]=G1+\ϵ
+    h[2,2]=h[9,9]=G1+ϵ
 
     h[3,3]=E1
-    h[10,10]=E1+\ϵ
+    h[10,10]=E1+ϵ
 
     h[4,4]=0.0
-    h[11,11]=\ϵ
+    h[11,11]=ϵ
 
     h[5,5]=-m.params.Eg
-    h[12,12]=-m.params.Eg+\ϵ
+    h[12,12]=-m.params.Eg+ϵ
 
     h[6,6]=-m.params.Eg
-    h[13,13]=-m.params.Eg+\ϵ
+    h[13,13]=-m.params.Eg+ϵ
 
     h[7,7]=G0
-    h[14,14]=G0+\ϵ
+    h[14,14]=G0+ϵ
 
     Rk2=R*sum(abs2,k)
 
@@ -339,22 +339,22 @@ function H(m::Zincblende14,k)
     E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*db*db/9)
 
     h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+\ϵ
+    h[2,2]=h[9,9]=G1p+Ek+ϵ
 
     h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+\ϵ
+    h[10,10]=E1p+Ek+ϵ
 
     h[4,4]=2*Ek*F+Ek
-    h[11,11]=2*Ek*F+Ek+\ϵ
+    h[11,11]=2*Ek*F+Ek+ϵ
 
     h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+\ϵ
+    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+ϵ
 
     h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+\ϵ
+    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+ϵ
 
     h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+\ϵ
+    h[14,14]=G0p-Ek*g1+ϵ
 
     kp = complex(kx,ky)/sqrt(2)
     km=conj(kp)
@@ -417,22 +417,22 @@ function H(m::Semiconductor14,k)
     E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*m.params.db*m.params.db/9)
 
     h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+\ϵ
+    h[2,2]=h[9,9]=G1p+Ek+ϵ
 
     h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+\ϵ
+    h[10,10]=E1p+Ek+ϵ
 
     h[4,4]=2*Ek*m.params.F+Ek
-    h[11,11]=2*Ek*m.params.F+Ek+\ϵ
+    h[11,11]=2*Ek*m.params.F+Ek+ϵ
 
     h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+\ϵ
+    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+ϵ
 
     h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+\ϵ
+    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+ϵ
 
     h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+\ϵ
+    h[14,14]=G0p-Ek*g1+ϵ
 
     kp = complex(kx,ky)/sqrt(2)
     km=conj(kp)

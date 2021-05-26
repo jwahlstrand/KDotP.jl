@@ -37,7 +37,6 @@ end
 export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe
 
 include("zincblende.jl")
-include("parabolic.jl")
 
 ########### Coefficients ODE solving
 

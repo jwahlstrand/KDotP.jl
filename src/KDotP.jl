@@ -613,6 +613,56 @@ end
 
 #######
 
+####### Interference spectrum
+export interference_spectrum, init_interference_spectrum
+
+struct interference_spectrum
+    omega::Array{Float64,1}
+    v::Array{Complex{Float64},4}
+end
+
+function init_interference_spectrum(oaxis)
+    interference_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3,3))
+end
+
+function Base.:+(a1::interference_spectrum,a2::interference_spectrum)
+    a=init_interference_spectrum(a1.omega)
+    a.v .= a1.v .+ a2.v
+    a
+end
+
+function scale!(a1::interference_spectrum,s::Real)
+    a1.v .*= s
+end
+
+function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
+    for v=valence_bands(m)
+        for c=conduction_bands(m)
+            theta=calc_little_gamma2(m,d,v,c,0.0)
+            Nkc=size(theta)[1]
+            vcv=d[(v,c)]
+            fact=4*vcv.dkc/(a.omega[2]-a.omega[1])
+            for q=1:Nkc
+                en=vcv.o[q]
+                den=a.omega[2]-a.omega[1]
+                qq=Integer(floor(en/2/den))+1
+                if ((qq>0) && (qq<length(a.omega)))
+                    for j=1:3
+                        a.v[qq,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        for p=1:3
+                            if j!=p
+                                a.v[qq,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
+                                a.v[qq,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
+                                a.v[qq,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 export spectra
 
 struct spectra

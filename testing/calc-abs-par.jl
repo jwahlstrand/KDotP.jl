@@ -3,12 +3,12 @@ using Distributed
 addprocs(3)
 
 @everywhere using StaticArrays
-@everywhere push!(LOAD_PATH,"/home/wahlstrj/repos/KDotP")
+#@everywhere push!(LOAD_PATH,"/home/wahlstrj/repos/KDotP")
 @everywhere using KDotP
 
 kdir=@SVector [0.0,0.0,1.0]
 
-m=Zincblende14()
+m=GaAs()
 
 oaxis=0.0:0.01:2.0
 

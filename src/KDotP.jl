@@ -34,7 +34,7 @@ function dHdz(m::Model,k)
     Hermitian(h)
 end
 
-export Zincblende14,Zincblende14nr,Parabolic
+export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe
 
 include("zincblende.jl")
 
@@ -61,7 +61,7 @@ function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float6
     # calculate the dH/dq's and generate derivative matrix
     w=p.dir[1]*dHdx(p.m,k)+p.dir[2]*dHdy(p.m,k)+p.dir[3]*dHdz(p.m,k)
     p.wc .= w
-    
+
     # 3 allocs here
     cc=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
 
@@ -145,14 +145,14 @@ function calc_w_phi_coeffs(m::Model, kperp, direction; abstol=5e-7, KCMX=0.5)
     pars=ode_params(kperp2,direction,true,n)
 
     prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_pos = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
+    sol_pos = solve(prob,BS3(),reltol=5e-7,abstol=abstol)
 
     pars=ode_params(kperp2,direction,false,n)
 
     c = copy(cinit)
 
     prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
+    sol_neg = solve(prob,BS3(),reltol=5e-7,abstol=abstol)
 
     function s(kc)
         if kc>=0.0
@@ -195,16 +195,16 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
     prob = ODEProblem(cfunc,c,(0.0,ks[end]),pars)
 
     dks=ks[2]-ks[1]
-    
-    sol_pos = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
+
+    sol_pos = solve(prob,BS3(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_pos = [sol_pos[q] for q=1:length(sol_pos)]
-    
+
     pars=ode_params(m,kperp2,direction,false,n)
 
     c = copy(cinit)
 
     prob = ODEProblem(cfunc,c,(0.0,-ks[1]),pars)
-    sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
+    sol_neg = solve(prob,BS3(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_neg = [sol_neg[q] for q=2:length(sol_neg)]
 
     return vcat(reverse(f_neg),f_pos)
@@ -262,7 +262,7 @@ function matrix_element_from_coeffs(m::Model,k,c::Array{Float64,1},kc::Float64)
 
     # 3 allocs here
     cc=reshape(reinterpret(Complex{Float64},@view c[1:2*14*14]),(14,14))
-    
+
     W = matrix_transform3(cc,dHdx(m,k),dHdy(m,k),dHdz(m,k))
 
     matrix_element(k,kc,energies,W)
@@ -301,7 +301,7 @@ function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
         dHdx!(b1,m,k)
         dHdy!(b2,m,k)
         dHdz!(b3,m,k)
-    
+
         W = matrix_transform3(cc,b1,b2,b3)
 
         l[q]=matrix_element(k,kcrange[q],energies,W)
@@ -326,7 +326,7 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
         dHdx!(b1,m,kperp2)
         dHdy!(b2,m,kperp2)
         dHdz!(b3,m,kperp2)
-    
+
         W = matrix_transform3(cc,b1,b2,b3)
         W[1,1,1]=-2*R*k[1]/0.45
         W[2,2,1]=2*R*k[1]/0.08
@@ -373,15 +373,15 @@ function calc_v(kperp,kdir,s::Function,i::Integer,j::Integer;Nkc=default_Nkc)
         b = me.energies[j] - me.energies[i]
         o[q]=b
         damp = exp(-4*abs(kc)^4/denom)
-        
+
         x[q]=a*damp
-        
+
         c = me.W[i,j,2]
         y[q]=c*damp
-        
+
         d = me.W[i,j,3]
         z[q]=d*damp
-	    
+
         q=q+1
     end
 
@@ -397,7 +397,7 @@ function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
     for me in l
         o[q]=me.energies[j] - me.energies[i]
         v[q,:] .= me.W[i,j,:] .* exp(-4*abs(me.kc)^4/denom)
-        
+
         q=q+1
     end
     dkc=l[2].kc-l[1].kc
@@ -424,7 +424,7 @@ function calc_v(kperp,kdir,s::Function,ir::UnitRange{Int64},jr::UnitRange{Int64}
         @inbounds for i=ir
             for j=jr
 	        o[q,i-ir[1]+1,j-jr[1]+1]=me.energies[j] - me.energies[i]
-	        
+
 	        x[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,1]*damp
 	        y[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,2]*damp
 	        z[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,3]*damp
@@ -484,7 +484,7 @@ export init_spectrum,incr_absorption!
 function init_spectrum(oaxis)
     absorption_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3))
 end
-                        
+
 function Base.:+(a1::absorption_spectrum,a2::absorption_spectrum)
     a=init_spectrum(a1.omega)
     a.v .= a1.v .+ a2.v
@@ -494,7 +494,7 @@ end
 function scale!(a1::absorption_spectrum,s::Real)
     a1.v .*= s
 end
-                        
+
 function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for vv in valence_bands(m)
         for cc in conduction_bands(m)
@@ -636,12 +636,12 @@ function abs_one_traj(m,omega,kperp,kdir)
     KCMAX=0.5
     dkc=1.0/8192
     ks=-KCMAX+dkc:dkc:KCMAX
-    
+
     s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
     if s==nothing
         return spectra(a,a2,0)
     end
-    
+
     l=matrix_element_list(m,kperp,kdir,ks,s)
     d=calc_v(l,1:14,1:14)
     incr_absorption!(a,m,d)
@@ -657,12 +657,12 @@ function box_integrate(m,omega,kcent,kwidth,kdir,depth)
     a=spectra(a1,a2,0)
 
     println("box: ",kcent)
-    
+
     kxmin = kcent[1]-kwidth/2
     kxmax = kcent[1]+kwidth/2
     kymin = kcent[2]-kwidth/2
     kymax = kcent[2]+kwidth/2
-    
+
     if depth==0
         abs_one_traj(m,omega,kcent,kdir)
         scale!(a,kwidth^2)
@@ -686,5 +686,5 @@ function box_integrate(m,omega,kcent,kwidth,kdir,depth)
     #println(a.n," out of ",n," were used")
     a
 end
-    
+
 end # module

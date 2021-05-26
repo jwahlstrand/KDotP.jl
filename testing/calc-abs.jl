@@ -20,20 +20,22 @@ a=init_spectrum(oaxis)
 
 println("init spectrum")
 
-m=Parabolic()
+m=ZnSe().parabolic
 
-for kx=0.00:0.002:0.2
-    for ky=0.00:0.002:0.2
+KCMAX=0.5
+loopRange=0.00:0.0003:0.15
+
+for kx in loopRange
+    dkc=1.0/8192
+    ks=-KCMAX+dkc:dkc:KCMAX
+    for ky in loopRange
         kperp=@SVector [kx,ky,0.0]
         println(kperp)
-        KCMAX=0.5
-        dkc=1.0/8192
-        ks=-KCMAX+dkc:dkc:KCMAX
         s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
         if s==nothing
             continue
         end
-        
+
         l=matrix_element_list(m,kperp,kdir,ks,s)
         d=calc_v(l,KDotP.valence_bands(m),KDotP.conduction_bands(m))
         incr_absorption!(a,m,d)

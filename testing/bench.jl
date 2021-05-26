@@ -1,4 +1,3 @@
-push!(LOAD_PATH,"/home/wahlstrj/Sync/jl/KDotP")
 using StaticArrays,BenchmarkTools
 using KDotP
 
@@ -10,7 +9,7 @@ a=init_spectrum(oaxis)
 
 const Nkc=8192
 #m=Zincblende14nr()
-m=Parabolic()
+m=GaAs().parabolic
 n=KDotP.nbands(m)
 
 du=zeros(Float64,2*n^2+n)

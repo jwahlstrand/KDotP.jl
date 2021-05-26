@@ -34,7 +34,7 @@ function dHdz(m::Model,k)
     Hermitian(h)
 end
 
-export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe
+export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe,GaAs_nr,InP,GaSb,InSb
 
 include("zincblende.jl")
 
@@ -145,14 +145,14 @@ function calc_w_phi_coeffs(m::Model, kperp, direction; abstol=5e-7, KCMX=0.5)
     pars=ode_params(kperp2,direction,true,n)
 
     prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_pos = solve(prob,BS3(),reltol=5e-7,abstol=abstol)
+    sol_pos = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
 
     pars=ode_params(kperp2,direction,false,n)
 
     c = copy(cinit)
 
     prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_neg = solve(prob,BS3(),reltol=5e-7,abstol=abstol)
+    sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
 
     function s(kc)
         if kc>=0.0
@@ -204,7 +204,7 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
     c = copy(cinit)
 
     prob = ODEProblem(cfunc,c,(0.0,-ks[1]),pars)
-    sol_neg = solve(prob,BS3(),reltol=5e-7,abstol=abstol,saveat=dks)
+    sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_neg = [sol_neg[q] for q=2:length(sol_neg)]
 
     return vcat(reverse(f_neg),f_pos)

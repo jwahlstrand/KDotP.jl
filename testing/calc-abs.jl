@@ -20,10 +20,10 @@ a=init_spectrum(oaxis)
 
 println("init spectrum")
 
-m=ZnSe().parabolic
+m=InSb().parabolic
 
 KCMAX=0.5
-loopRange=0.00:0.0003:0.15
+loopRange=0.00:0.0002:0.12
 
 for kx in loopRange
     dkc=1.0/8192

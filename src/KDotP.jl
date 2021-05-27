@@ -2,7 +2,7 @@ module KDotP
 
 using LinearAlgebra, OrdinaryDiffEq, StaticArrays
 
-export cfunc,calc_w_phi_coeffs, calc_c_coeffs
+export ufunc, calc_u_coeffs
 
 # Approach is based on Wahlstrand and Sipe, Phys. Rev. B 82, 075206 (2010).
 # This paper is referred to in comments below as PRB10.
@@ -53,7 +53,7 @@ include("zincblende.jl")
 # matrix elements at kc = 0 using Eq. (76). The differential equation we solve
 # to find Dₘₙ(k⟂;kc) is Eq. (75).
 
-# In the calculation, we use a real vector of length 2*N²+N, containing the
+# In the calculation, we use a real vector u of length 2*N²+N, containing the
 # flattened D matrix followed by a vector of band energies.
 
 # The direction along which we calculate is g, and we define perpendicular e and
@@ -62,18 +62,18 @@ include("zincblende.jl")
 
 struct ode_params
     m::Model
-    kperp::SVector{3,Float64} # kperp in the efg basis
-    dir::SVector{3,Float64}  # g direction
+    kperp::KVector # kperp in the efg basis
+    dir::KVector  # g direction
     pos::Bool  # whether we are solving in the +kc or -kc direction
-    wc::Array{Complex{Float64},2} # pre-allocated matrix
-    W::Array{Complex{Float64},2}  # pre-allocated matrix for storing the matrix elements in the g direction
+    wc::Matrix{ComplexF64} # pre-allocated matrix
+    W::Matrix{ComplexF64}  # pre-allocated matrix for storing the matrix elements in the g direction
     ode_params(m,kperp,dir,pos,n)=new(m,kperp,dir,pos,zeros(Complex{Float64},n,n),zeros(Complex{Float64},n,n))
 end
 
 export ode_params
 
 # u holds the coefficients of the matrix elements in the first 2*N^2 elements and the band energies in the last N
-function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float64)
+function ufunc(du::Vector{Float64},u::Vector{Float64},p::ode_params,kc::Float64)
     k=calc_k(p.kperp,p.dir,kc,p.pos)
 
     N=size(p.wc)[1]
@@ -82,16 +82,18 @@ function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float6
     w=p.dir[1]*dHdx(p.m,k)+p.dir[2]*dHdy(p.m,k)+p.dir[3]*dHdz(p.m,k)
     p.wc .= w
 
-    cc=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
+    D=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
 
+    # find Wg at this k
     fill!(p.W,0.0)
-    matrix_transform!(p.W,cc,p.wc)
+    matrix_transform!(p.W,D,p.wc)
 
-    vcc=@view du[1:2*N^2] # slicing creates a copy by default
+    vD=@view du[1:2*N^2] # slicing creates a copy by default
 
-    cdu=reshape(reinterpret(Complex{Float64},vcc),(N,N))
-    cdu.=0.0
+    dD=reshape(reinterpret(Complex{Float64},vD),(N,N))
+    dD.=0.0
 
+    # calculate change in band energy
     @inbounds for i=1:N
         du[2*N^2+i]=real(p.W[i,i])
     end
@@ -102,12 +104,13 @@ function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float6
             if abs(omegadiff)>1e-11
                 aa = p.W[q,n]/omegadiff
                 for m=1:N
-                    cdu[m,n]+=aa*cc[m,q]
+                    dD[m,n]+=aa*D[m,q]
                 end
             end
         end
     end
 
+    # all this should be negative if we are going in the -kc direction
     if !p.pos
         @inbounds for i=1:2*N^2+N
             du[i] = -du[i]
@@ -115,74 +118,33 @@ function cfunc(du::Array{Float64,1},u::Array{Float64,1},p::ode_params,kc::Float6
     end
 end
 
-export initial_c
+export initial_u
 
-# the initial matrix Dₘₙ(k⟂;0) is found by diagonalizing the hamiltonian at k⟂
-function initial_c(h)
+# The initial matrix Dₘₙ(k⟂;0) and band energies ħωₘ is found by diagonalizing
+# the hamiltonian at k⟂.
+function initial_u(h)
     n=size(h)[1]
     eigval, eigvec = eigen(h)
 
-    c = zeros(2*n^2+n)
+    u = zeros(2*n^2+n)
 
     for i=1:n
         for j=1:n
-            c[2*(i-1)+2*n*(j-1)+1]=real(eigvec[i,j])
-            c[2*(i-1)+2*n*(j-1)+1+1]=imag(eigvec[i,j])
+            u[2*(i-1)+2*n*(j-1)+1]=real(eigvec[i,j])
+            u[2*(i-1)+2*n*(j-1)+1+1]=imag(eigvec[i,j])
         end
-        c[2*n^2+i]=eigval[i]
+        u[2*n^2+i]=eigval[i]
     end
 
-    c
+    u
 end
 
 # maximum kc to calculate - may vary by model so we should allow setting this
 const KCMAX=0.5
 
 # this function calculates a unitary matrix that can be used to calculate matrix elements along a direction,
-# returning a function that gives the matrix at a given kc
-function calc_w_phi_coeffs(m::Model, kperp, direction; abstol=5e-7, KCMX=0.5)
-    kperp2 = efg_kperp(kperp,direction)
-
-    if trajectory_intersects_bad(m, kperp2, direction)
-        return nothing
-    end
-
-    h=H(m,kperp2)
-
-    n=size(h)[1]
-
-    c=initial_c(h)
-
-    # make a copy for when we go negative
-
-    cinit = copy(c)
-
-    pars=ode_params(kperp2,direction,true,n)
-
-    prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_pos = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
-
-    pars=ode_params(kperp2,direction,false,n)
-
-    c = copy(cinit)
-
-    prob = ODEProblem(cfunc,c,(0.0,KCMX),pars)
-    sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol)
-
-    function s(kc)
-        if kc>=0.0
-            sol_pos(kc)
-        else
-            sol_neg(-kc)
-        end
-    end
-
-    return s
-end
-
-# this function calculates a unitary matrix that can be used to calculate matrix elements along a direction,
 # returning a list of the matrices at values of kc given in ks
-function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
+function calc_u_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
     kperp2 = efg_kperp(kperp,direction)
 
     # if this goes through a degeneracy, just skip it
@@ -192,18 +154,18 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
 
     h=H(m,kperp2)
 
-    n=size(h)[1]
+    n=nbands(m)
 
-    c=initial_c(h)
+    u=initial_u(h)
 
     # make a copy for when we go negative (check if this is really necessary)
 
-    cinit = copy(c)
+    uinit = copy(u)
 
     pars=ode_params(m,kperp2,direction,true,n)
 
     # first we solve from 0 to positive values
-    prob = ODEProblem(cfunc,c,(0.0,ks[end]),pars)
+    prob = ODEProblem(ufunc,u,(0.0,ks[end]),pars)
 
     dks=ks[2]-ks[1]
 
@@ -212,10 +174,10 @@ function calc_c_coeffs(m::Model, kperp, direction, ks; abstol=5e-7, KCMX=0.5)
 
     pars=ode_params(m,kperp2,direction,false,n)
 
-    c = copy(cinit)
+    u = copy(uinit)
 
     # next we solve from 0 to negative values
-    prob = ODEProblem(cfunc,c,(0.0,-ks[1]),pars)
+    prob = ODEProblem(ufunc,u,(0.0,-ks[1]),pars)
     sol_neg = solve(prob,Tsit5(),reltol=5e-7,abstol=abstol,saveat=dks)
     f_neg = [sol_neg[q] for q=2:length(sol_neg)]
 
@@ -226,38 +188,26 @@ end
 
 export get_energies,get_elements,get_coeffs
 
-"get all band energies from the output of calc_c_coeffs()"
-function get_energies(c::AbstractArray,krange)
-    [c[q][2*14*14+i] for i=1:14, q=1:length(krange)]
+"get all band energies from the output of calc_u_coeffs()"
+function get_energies(u::AbstractArray,krange)
+    [u[q][2*14*14+i] for i=1:14, q=1:length(krange)]
 end
 
-function get_energies(s::Function,krange)
-    [s(k)[2*14*14+i] for i=1:14, k=krange]
+export D_from_u
+
+"extract complex D matrix from real u vector"
+function D_from_u(u)
+    D=reshape(reinterpret(ComplexF64,@view u[1:2*14*14]),(14,14))
 end
 
-export C_from_c
-
-"extract complex C matrix from real c vector"
-function C_from_c(c)
-    cc=reshape(reinterpret(Complex{Float64},@view c[1:2*14*14]),(14,14))
+"extract D row elements from the ith column from the output of calc_u_coeffs()"
+function get_elements(u::AbstractArray,krange,i)
+    [D_from_u(u[q])[i,j] for j=1:14, q=1:length(krange)]
 end
 
-"extract C row elements from the ith column from the output of calc_c_coeffs()"
-function get_elements(c::AbstractArray,krange,i)
-    [C_from_c(c[q])[i,j] for j=1:14, q=1:length(krange)]
-end
-
-function get_elements(s::Function,krange,i)
-    [C_from_c(s(k))[i,j] for j=1:14, k=krange]
-end
-
-"extract C matrices from the output of calc_c_coeffs()"
-function get_coeffs(c::AbstractArray,krange)
-    [C_from_c(c[q])[i,j] for i=1:14, j=1:14, q=1:length(krange)]
-end
-
-function get_coeffs(s::Function,krange)
-    [C_from_c(s(k))[i,j] for i=1:14, j=1:14, k=krange]
+"extract D matrices from the output of calc_u_coeffs()"
+function get_coeffs(u::AbstractArray,krange)
+    [D_from_u(u[q])[i,j] for i=1:14, j=1:14, q=1:length(krange)]
 end
 
 ##### Matrix elements
@@ -270,32 +220,34 @@ end
 export matrix_element
 
 struct matrix_element
-    k::SVector{3,Float64} # the k vector for this point (in efg basis)
-    kc::Float64           # the kc (k_parallel) value for this point
-    energies::Array{Float64,1}
+    k::KVector  # the k vector for this point (in efg basis)
+    kc::Float64 # the kc (k_parallel) value for this point
+    energies::Vector{Float64}
     W::Array{Complex{Float64},3}
 end
 
 export matrix_element_from_coeffs
 
-"Calculate Wx, Wy, and Wz matrix elements from a c vector"
-function matrix_element_from_coeffs(m::Model,k,c::Array{Float64,1},kc::Float64)
-    energies=c[2*14*14+1:2*14*14+14]
+"Calculate Wx, Wy, and Wz matrix elements from a u vector"
+function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc::Float64)
+    n=nbands(m)
+    energies=u[2*n*n+1:2*n*n+n]
 
     # 3 allocs here
-    cc=reshape(reinterpret(Complex{Float64},@view c[1:2*14*14]),(14,14))
+    D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
-    W = matrix_transform3(cc,dHdx(m,k),dHdy(m,k),dHdz(m,k))
+    W = matrix_transform3(D,dHdx(m,k),dHdy(m,k),dHdz(m,k))
 
     matrix_element(k,kc,energies,W)
 end
 
-function matrix_element_from_coeffs(m::Model,k,c::Array{Float64,1},kc,u::Integer)
-    energies=c[2*14*14+1:2*14*14+14]
+function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc,i::Integer)
+    n=nbands(m)
+    energies=u[2*n*n+1:2*n*n+n]
 
-    cc=reshape(reinterpret(Complex{Float64},@view c[1:2*14*14]),(14,14))
+    D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
-    W = matrix_transform3(cc,dHdx(m,k[1]),dHdy(m,k[2]),dHdz(m,k[3]),u)
+    W = matrix_transform3(D,dHdx(m,k[1]),dHdy(m,k[2]),dHdz(m,k[3]),i)
 
     matrix_element(k,kc,energies,W)
 end
@@ -303,11 +255,6 @@ end
 export matrix_element_list
 
 # get a full list of matrix elements along the line
-function matrix_element_list(m,kperp,kdir,kcrange,s::Function)
-    kperp2 = efg_kperp(kperp,kdir)
-    [matrix_element_from_coeffs(m,kperp2+kc*kdir,s(kc),kc) for kc in kcrange]
-end
-
 function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
     kperp2 = efg_kperp(kperp,kdir)
     l=Array{matrix_element}(undef,length(kcrange))
@@ -715,7 +662,7 @@ function abs_one_traj(m,omega,kperp,kdir)
     dkc=1.0/8192
     ks=-KCMAX+dkc:dkc:KCMAX
 
-    s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
+    s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
     if s==nothing
         return spectra(a,a2,0)
     end

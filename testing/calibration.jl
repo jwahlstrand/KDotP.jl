@@ -24,7 +24,7 @@ println(kperp)
 KCMAX=0.5
 dkc=1.0/32768
 ks=-KCMAX+dkc:dkc:KCMAX
-s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
+s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
 
 l=matrix_element_list(m,kperp,kdir,ks,s)
 d=calc_v(l,1:2,1:2)

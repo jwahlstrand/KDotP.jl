@@ -320,11 +320,9 @@ const default_Nkc=16384
 # particular bands
 
 struct v_cv
-    v::Array{Complex{Float64},2}
-    o::Array{Float64,1}
-    max_N::Integer  # maximum N that needs to be kept
-    min_N::Integer
-    dkc::Float64 # for normalization
+    v::Array{ComplexF64,2} # v matrix elements V_cv (first dim is kc, second dim is [x,y,z])
+    ħω::Vector{Float64}          # energy difference ħω_cv for each kc
+    dkc::Float64                 # step size in kc, for normalization
 end
 
 export calc_v
@@ -334,7 +332,7 @@ export calc_v
 # this is the same as v_{cv}(k), which is used in Eq. (61) in PRB10 to calculate
 # absorption with no DC field
 
-function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
+function calc_v(l::Vector{matrix_element},i::Integer,j::Integer)
     n=length(l)
     denom=KCMAX^4
     v=zeros(Complex{Float64},n,3)
@@ -348,7 +346,7 @@ function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
     end
     dkc=l[2].kc-l[1].kc
 
-    v_cv(v,o,Nkc/2,0,dkc)
+    v_cv(v,o,dkc)
 end
 
 function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc)
@@ -374,7 +372,7 @@ function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{In
     d=Dict{Tuple{Int64,Int64},v_cv}()
     for i=ir
         for j=jr
-            d[(i,j)]=v_cv(v[:,:,i-ir[1]+1,j-jr[1]+1],o[:,i-ir[1]+1,j-jr[1]+1],Nkc/2,0,dkc)
+            d[(i,j)]=v_cv(v[:,:,i-ir[1]+1,j-jr[1]+1],o[:,i-ir[1]+1,j-jr[1]+1],dkc)
         end
     end
     d
@@ -385,24 +383,24 @@ end
 export absorption_spectrum
 
 struct absorption_spectrum
-    omega::Array{Float64,1} # frequency (really in eV)
-    v::Array{Complex{Float64},3}
+    ħω::Vector{Float64}            # energy in eV
+    η::Array{Complex{Float64},3}   # transition rate (TODO: specify units)
 end
 
 export init_spectrum,incr_absorption!
 
 function init_spectrum(oaxis)
-    absorption_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3))
+    absorption_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3))
 end
 
 function Base.:+(a1::absorption_spectrum,a2::absorption_spectrum)
     a=init_spectrum(a1.omega)
-    a.v .= a1.v .+ a2.v
+    a.η .= a1.η .+ a2.η
     a
 end
 
 function scale!(a1::absorption_spectrum,s::Real)
-    a1.v .*= s
+    a1.η .*= s
 end
 
 # We calculate the spectrum using a histogram approach. Each wavevector in our
@@ -415,19 +413,22 @@ function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,In
             v=d[(vv,cc)]
             # normalizing factor
             # TODO: derive this number from fundamental quantities
-            fact=v.dkc/(a.omega[2]-a.omega[1])*2.2918
-            for q=1:length(v.o)
-                en=v.o[q]
-                den=a.omega[2]-a.omega[1]
+            fact=v.dkc/(a.ħω[2]-a.ħω[1])*2.2918
+            for q=1:length(v.ħω)
+                ħωcv=v.ħω[q]
+                ΔE=a.ħω[2]-a.ħω[1]
                 # calculate which bin this goes into
-                qq=Integer(round(Int,en/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                b=Integer(round(Int,ħωcv/ΔE))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        # Eq. (61) in PRB10
-                        γ = v.v[q,j]/en
-                        # Multiply by normalizing factor and incremement this
-                        # bin in the histogram
-                        a.v[qq,j,j]+=fact*abs2(γ)
+                        for i=1:3
+                            # Eq. (61) in PRB10
+                            γi = v.v[q,i]/ħωcv
+                            γj = v.v[q,j]/ħωcv
+                            # Multiply by normalizing factor and incremement
+                            # this bin in the histogram
+                            a.η[b,i,j]+=fact*conj(γi)*γj
+                        end
                     end
                 end
             end
@@ -435,35 +436,37 @@ function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,In
     end
 end
 
+# This just does the matrix element calculation for kperp and kdir and then
+# calls incr_absorption!
 function incr_absorption!(a::absorption_spectrum,kperp,kdir;abstol=5e-7)
     s=calc_w_phi_coeffs(kperp,kdir,abstol=abstol)
     if s==nothing
         return
     end
-    d=calc_v(kperp,kdir,s,1:6,7:8)
+    d=calc_v(kperp,kdir,s,1:6,7:8) # valence and conduction bands hard-coded
     incr_absorption!(a,d)
 end
 
-function incr_absorption!(a::absorption_spectrum,l::Array{matrix_element,1})
-    d=calc_v(l,1:6,7:8)
+# This takes the matrix element list and calculates absorption
+function incr_absorption!(a::absorption_spectrum,l::Vector{matrix_element})
+    d=calc_v(l,1:6,7:8)  # valence and conduction bands hard-coded
     incr_absorption!(a,d)
 end
 
 #### two-photon absorption
 
-function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,omegad)
+function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
     vcv=d[(v,c)]
-    theta=zeros(Complex{Float64},length(vcv.o),3,3)
-    toeV=1240.7/3e5/2/pi
+    theta=zeros(Complex{Float64},length(vcv.ħω),3,3)
     for n=1:nbands(m)
         vcn=d[(n,c)]
         vnv=d[(v,n)]
         for q=1:length(vcv.o)
-            en=vcv.o[q]
-            if vcv.o[q]>3.0
+            en=vcv.ħω[q]
+            if vcv.ħω[q]>3.0
                 continue
             end
-            denom=vcn.o[q]-vnv.o[q]+omegad
+            denom=vcn.ħω[q]-vnv.ħω[q]+ωd
             for j=1:3
                 theta[q,j,j]+=vcn.v[q,j]*vnv.v[q,j]/denom
                 for p=1:3
@@ -474,14 +477,14 @@ function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,omegad
             end
         end
     end
-    theta .*= (0.5im ./ vcv.o.^2)
+    theta .*= (0.5im ./ vcv.ħω.^2)
     theta
 end
 
 export two_photon_absorption_spectrum, init_spectrum2
 
 struct two_photon_absorption_spectrum
-    omega::Array{Float64,1}
+    ħω::Vector{Float64}
     v::Array{Complex{Float64},5}
 end
 
@@ -490,7 +493,7 @@ function init_spectrum2(oaxis)
 end
 
 function Base.:+(a1::two_photon_absorption_spectrum,a2::two_photon_absorption_spectrum)
-    a=init_spectrum2(a1.omega)
+    a=init_spectrum2(a1.ħω)
     a.v .= a1.v .+ a2.v
     a
 end
@@ -505,19 +508,19 @@ function incr_absorption!(a::two_photon_absorption_spectrum,m::Model,d::Dict{Tup
             theta=calc_little_gamma2(m,d,v,c,0.0)
             Nkc=size(theta)[1]
             vcv=d[(v,c)]
-            fact=4*vcv.dkc/(a.omega[2]-a.omega[1])
+            fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
-                en=vcv.o[q]
-                den=a.omega[2]-a.omega[1]
-                qq=Integer(floor(en/2/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                en=vcv.ħω[q]
+                den=a.ħω[2]-a.ħω[1]
+                b=Integer(floor(en/2/den))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[qq,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[qq,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[qq,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[qq,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
                             end
                         end
                     end
@@ -529,11 +532,11 @@ end
 
 #######
 
-####### Interference spectrum
+####### 1+2 photon interference spectrum
 export interference_spectrum, init_interference_spectrum
 
 struct interference_spectrum
-    omega::Array{Float64,1}
+    ħω::Array{Float64,1}
     v::Array{Complex{Float64},4}
 end
 
@@ -557,19 +560,19 @@ function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,
             theta=calc_little_gamma2(m,d,v,c,0.0)
             Nkc=size(theta)[1]
             vcv=d[(v,c)]
-            fact=4*vcv.dkc/(a.omega[2]-a.omega[1])
+            fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
-                en=vcv.o[q]
-                den=a.omega[2]-a.omega[1]
-                qq=Integer(floor(en/2/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                en=vcv.ħω[q]
+                den=a.ħω[2]-a.ħω[1]
+                b=Integer(floor(en/2/den))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[qq,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[qq,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[qq,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[qq,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
                             end
                         end
                     end
@@ -578,6 +581,8 @@ function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,
         end
     end
 end
+
+######## bundle of lots of spectra
 
 export spectra
 
@@ -600,6 +605,8 @@ end
 
 export abs_one_traj, box_integrate, scale!
 
+# Calculate absorption from one k-space trajectory along direction kdir at
+# kperp. This does the full calculation, starting from the Hamiltonian.
 function abs_one_traj(m,omega,kperp,kdir)
     a=init_spectrum(omega)
     a2=init_spectrum2(omega)
@@ -622,6 +629,7 @@ function abs_one_traj(m,omega,kperp,kdir)
     spectra(a,a2,1)
 end
 
+# Sum spectra inside a square box in kperp space.
 function box_integrate(m,omega,kcent,kwidth,kdir,depth)
     a1=init_spectrum(omega)
     a2=init_spectrum2(omega)

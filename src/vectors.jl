@@ -22,6 +22,7 @@ function get_efg(g)
     e,three_vector_f(g,e),g
 end
 
+# convert kperp in efg basis to xyz basis
 efg_kperp(kperp,e,f,g) = kperp[1]*e+kperp[2]*f+kperp[3]*g
 
 function efg_kperp(kperp,kdir)

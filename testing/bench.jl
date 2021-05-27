@@ -14,20 +14,20 @@ n=KDotP.nbands(m)
 
 du=zeros(Float64,2*n^2+n)
 h=H(m,kperp)
-u=initial_c(h)
+u=KDotP.initial_u(h)
 
 wc=zeros(Complex{Float64},n,n)
 W=zeros(Complex{Float64},n,n)
 
 p=ode_params(m,kperp,kdir,true,n)
-@benchmark cfunc(du,u,p,0.0)
+@benchmark ufunc(du,u,p,0.0)
 
 const dkc=1.0/Nkc
 ks=-0.5+dkc:dkc:0.5
-s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
-s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
+s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
+s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
 println("Calculate coeffs:")
-@time s=calc_c_coeffs(m,kperp,kdir,ks,abstol=1e-6)
+@time s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
 
 println("Generate matrix element list:")
 l=matrix_element_list(m,kperp,kdir,ks,s)

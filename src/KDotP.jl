@@ -220,7 +220,7 @@ end
 export matrix_element
 
 struct matrix_element
-    k::KVector  # the k vector for this point (in efg basis)
+    k::KVector  # the k vector for this point (in xyz basis)
     kc::Float64 # the kc (k_parallel) value for this point
     energies::Vector{Float64}
     W::Array{Complex{Float64},3}
@@ -329,39 +329,10 @@ end
 
 export calc_v
 
-# calculates v_{cv}(k) [Used in Eq. (61) in PRB10]
-function calc_v(kperp,kdir,s::Function,i::Integer,j::Integer;Nkc=default_Nkc)
-    dkc=2*KCMAX/Nkc
-    denom=KCMAX^4
-    x=zeros(Complex{Float64},Nkc)
-    y=zeros(Complex{Float64},Nkc)
-    z=zeros(Complex{Float64},Nkc)
-    o=zeros(Float64,Nkc)
-    q=1
-    for kc=-KCMAX+dkc:dkc:KCMAX
-        if kc>=0.0
-            me=matrix_element_from_coeffs(kperp+kc*kdir,s(kc),kc)
-        else
-            me=matrix_element_from_coeffs(kperp-kc*kdir,s(kc),kc)
-        end
-        a = me.W[i,j,1]
-        b = me.energies[j] - me.energies[i]
-        o[q]=b
-        damp = exp(-4*abs(kc)^4/denom) # window to remove artifacts from FFT (used in FKE calculation)
-
-        x[q]=a*damp
-
-        c = me.W[i,j,2]
-        y[q]=c*damp
-
-        d = me.W[i,j,3]
-        z[q]=d*damp
-
-        q=q+1
-    end
-
-    v_cv(x,y,z,o,Nkc/2,0,dkc)
-end
+# Calculates W_{cv}(k⟂;kc)
+# For a given ε his can be used to calculate V_{cv}(k⟂;t), and the magnitude of
+# this is the same as v_{cv}(k), which is used in Eq. (61) in PRB10 to calculate
+# absorption with no DC field
 
 function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
     n=length(l)
@@ -378,42 +349,6 @@ function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
     dkc=l[2].kc-l[1].kc
 
     v_cv(v,o,Nkc/2,0,dkc)
-end
-
-
-function calc_v(kperp,kdir,s::Function,ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc)
-    dkc=2*KCMAX/Nkc
-    denom=KCMAX^4
-    x=zeros(Complex{Float64},Nkc,length(ir),length(jr))
-    y=zeros(Complex{Float64},Nkc,length(ir),length(jr))
-    z=zeros(Complex{Float64},Nkc,length(ir),length(jr))
-    o=zeros(Float64,Nkc,length(ir),length(jr))
-    q=1
-    for kc=-KCMAX+dkc:dkc:KCMAX
-        if kc>=0.0
-            me=matrix_element_from_coeffs(kperp+kc*kdir,s(kc),kc,8)
-        else
-            me=matrix_element_from_coeffs(kperp-kc*kdir,s(kc),kc,8)
-        end
-        damp = exp(-4*abs(kc)^4/denom)
-        @inbounds for i=ir
-            for j=jr
-	        o[q,i-ir[1]+1,j-jr[1]+1]=me.energies[j] - me.energies[i]
-
-	        x[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,1]*damp
-	        y[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,2]*damp
-	        z[q,i-ir[1]+1,j-jr[1]+1]=me.W[i,j,3]*damp
-            end
-        end
-        q=q+1
-    end
-    d=Dict{Tuple{Int64,Int64},v_cv}()
-    for i=ir
-        for j=jr
-            d[(i,j)]=v_cv(x[:,i-ir[1]+1,j-jr[1]+1],y[:,i-ir[1]+1,j-jr[1]+1],z[:,i-ir[1]+1,j-jr[1]+1],o[:,i-ir[1]+1,j-jr[1]+1],Nkc/2,0,dkc)
-        end
-    end
-    d
 end
 
 function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc)
@@ -470,18 +405,29 @@ function scale!(a1::absorption_spectrum,s::Real)
     a1.v .*= s
 end
 
+# We calculate the spectrum using a histogram approach. Each wavevector in our
+# line contributes to absorption at a particular frequency. We split up
+# frequency space into bins and sort the contributions into bins, approximating
+# the absorption spectrum.
 function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for vv in valence_bands(m)
         for cc in conduction_bands(m)
             v=d[(vv,cc)]
+            # normalizing factor
+            # TODO: derive this number from fundamental quantities
             fact=v.dkc/(a.omega[2]-a.omega[1])*2.2918
             for q=1:length(v.o)
                 en=v.o[q]
                 den=a.omega[2]-a.omega[1]
+                # calculate which bin this goes into
                 qq=Integer(round(Int,en/den))+1
                 if ((qq>0) && (qq<length(a.omega)))
                     for j=1:3
-                        a.v[qq,j,j]+=fact*abs2(v.v[q,j])/en^2
+                        # Eq. (61) in PRB10
+                        γ = v.v[q,j]/en
+                        # Multiply by normalizing factor and incremement this
+                        # bin in the histogram
+                        a.v[qq,j,j]+=fact*abs2(γ)
                     end
                 end
             end

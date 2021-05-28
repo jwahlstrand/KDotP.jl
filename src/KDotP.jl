@@ -16,26 +16,16 @@ export Model
 
 abstract type Model end
 
-function dHdx(m::Model,k)
+function dHdi(m::Model,k,f!)
     n=nbands(m)
     h=zeros(Complex{Float64},n,n)
-    dHdx!(h,m,k)
+    f!(h,m,k)
     Hermitian(h)
 end
 
-function dHdy(m::Model,k)
-    n=nbands(m)
-    h=zeros(Complex{Float64},n,n)
-    dHdy!(h,m,k)
-    Hermitian(h)
-end
-
-function dHdz(m::Model,k)
-    n=nbands(m)
-    h=zeros(Complex{Float64},n,n)
-    dHdz!(h,m,k)
-    Hermitian(h)
-end
+dHdx(m::Model,k)=dHdi(m,k,dHdx!)
+dHdy(m::Model,k)=dHdi(m,k,dHdy!)
+dHdz(m::Model,k)=dHdi(m,k,dHdz!)
 
 export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe,GaAs_nr,InP,GaSb,InSb
 
@@ -82,7 +72,7 @@ function ufunc(du::Vector{Float64},u::Vector{Float64},p::ode_params,kc::Float64)
     w=p.dir[1]*dHdx(p.m,k)+p.dir[2]*dHdy(p.m,k)+p.dir[3]*dHdz(p.m,k)
     p.wc .= w
 
-    D=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
+    D=reshape(reinterpret(ComplexF64,@view u[1:2*N^2]),(N,N))
 
     # find Wg at this k
     fill!(p.W,0.0)
@@ -90,7 +80,7 @@ function ufunc(du::Vector{Float64},u::Vector{Float64},p::ode_params,kc::Float64)
 
     vD=@view du[1:2*N^2] # slicing creates a copy by default
 
-    dD=reshape(reinterpret(Complex{Float64},vD),(N,N))
+    dD=reshape(reinterpret(ComplexF64,vD),(N,N))
     dD.=0.0
 
     # calculate change in band energy
@@ -222,8 +212,8 @@ export matrix_element
 struct matrix_element
     k::KVector  # the k vector for this point (in xyz basis)
     kc::Float64 # the kc (k_parallel) value for this point
-    energies::Vector{Float64}
-    W::Array{Complex{Float64},3}
+    ħω::Vector{Float64} # vector of band energies
+    W::Array{ComplexF64,3}
 end
 
 export matrix_element_from_coeffs
@@ -231,25 +221,25 @@ export matrix_element_from_coeffs
 "Calculate Wx, Wy, and Wz matrix elements from a u vector"
 function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc::Float64)
     n=nbands(m)
-    energies=u[2*n*n+1:2*n*n+n]
+    ħω=u[2*n*n+1:2*n*n+n]
 
     # 3 allocs here
     D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
     W = matrix_transform3(D,dHdx(m,k),dHdy(m,k),dHdz(m,k))
 
-    matrix_element(k,kc,energies,W)
+    matrix_element(k,kc,ħω,W)
 end
 
 function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc,i::Integer)
     n=nbands(m)
-    energies=u[2*n*n+1:2*n*n+n]
+    ħω=u[2*n*n+1:2*n*n+n]
 
     D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
     W = matrix_transform3(D,dHdx(m,k[1]),dHdy(m,k[2]),dHdz(m,k[3]),i)
 
-    matrix_element(k,kc,energies,W)
+    matrix_element(k,kc,ħω,W)
 end
 
 export matrix_element_list
@@ -259,22 +249,22 @@ function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
     kperp2 = efg_kperp(kperp,kdir)
     l=Array{matrix_element}(undef,length(kcrange))
     N=nbands(m)
-    b1=zeros(Complex{Float64},N,N)
-    b2=zeros(Complex{Float64},N,N)
-    b3=zeros(Complex{Float64},N,N)
+    b1=zeros(ComplexF64,N,N)
+    b2=zeros(ComplexF64,N,N)
+    b3=zeros(ComplexF64,N,N)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
-        energies=c[2*N^2+1:2*N^2+N]
+        ħω=c[2*N^2+1:2*N^2+N]
 
-        cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
+        cc=reshape(reinterpret(ComplexF64,@view c[1:2*N^2]),(N,N))
         dHdx!(b1,m,k)
         dHdy!(b2,m,k)
         dHdz!(b3,m,k)
 
         W = matrix_transform3(cc,b1,b2,b3)
 
-        l[q]=matrix_element(k,kcrange[q],energies,W)
+        l[q]=matrix_element(k,kcrange[q],ħω,W)
     end
     l
 end
@@ -283,16 +273,16 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
     kperp2 = efg_kperp(kperp,kdir)
     l=Array{matrix_element}(undef,length(kcrange))
     N=nbands(m)
-    b1=zeros(Complex{Float64},N,N)
-    b2=zeros(Complex{Float64},N,N)
-    b3=zeros(Complex{Float64},N,N)
+    b1=zeros(ComplexF64,N,N)
+    b2=zeros(ComplexF64,N,N)
+    b3=zeros(ComplexF64,N,N)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
-        energies=[-1.519-R*norm(k)^2/0.45,R*norm(k)^2/0.08]
+        ħω=[-1.519-R*norm(k)^2/0.45,R*norm(k)^2/0.08]
 
         #cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
-        cc=zeros(Complex{Float64},N,N)+I
+        cc=zeros(ComplexF64,N,N)+I
         dHdx!(b1,m,kperp2)
         dHdy!(b2,m,kperp2)
         dHdz!(b3,m,kperp2)
@@ -307,7 +297,7 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
         W[1,1,3]=-2*R*k[3]/0.45
         W[2,2,3]=2*R*k[3]/0.08
 
-        l[q]=matrix_element(k,kcrange[q],energies,W)
+        l[q]=matrix_element(k,kcrange[q],ħω,W)
     end
     l
 end
@@ -320,11 +310,9 @@ const default_Nkc=16384
 # particular bands
 
 struct v_cv
-    v::Array{Complex{Float64},2}
-    o::Array{Float64,1}
-    max_N::Integer  # maximum N that needs to be kept
-    min_N::Integer
-    dkc::Float64 # for normalization
+    v::Array{ComplexF64,2} # v matrix elements V_cv (first dim is kc, second dim is [x,y,z])
+    ħω::Vector{Float64}          # energy difference ħω_cv for each kc
+    dkc::Float64                 # step size in kc, for normalization
 end
 
 export calc_v
@@ -334,35 +322,39 @@ export calc_v
 # this is the same as v_{cv}(k), which is used in Eq. (61) in PRB10 to calculate
 # absorption with no DC field
 
-function calc_v(l::Array{matrix_element,1},i::Integer,j::Integer)
+function calc_v(l::Vector{matrix_element},i::Integer,j::Integer;dampfunc=nothing)
     n=length(l)
-    denom=KCMAX^4
-    v=zeros(Complex{Float64},n,3)
+    v=zeros(ComplexF64,n,3)
     o=zeros(Float64,n)
     q=1
     for me in l
-        o[q]=me.energies[j] - me.energies[i]
-        v[q,:] .= me.W[i,j,:] .* exp(-4*abs(me.kc)^4/denom)
-
+        o[q]=me.ħω[j] - me.ħω[i]
+        v[q,:] .= me.W[i,j,:]
+        if dampfunc != nothing
+            v[q,:] .*= dampfunc(me.kc)
+        end
         q=q+1
     end
     dkc=l[2].kc-l[1].kc
 
-    v_cv(v,o,Nkc/2,0,dkc)
+    v_cv(v,o,dkc)
 end
 
-function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc)
+function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc,dampfunc=nothing)
     n=length(l)
     dkc=l[2].kc-l[1].kc
-    denom=KCMAX^4
-    v=zeros(Complex{Float64},n,3,length(ir),length(jr))
+    v=zeros(ComplexF64,n,3,length(ir),length(jr))
     o=zeros(Float64,n,length(ir),length(jr))
     q=1
     for me in l
-        damp = exp(-4*abs(me.kc)^4/denom)
+        if dampfunc != nothing
+            damp = dampfunc(me.kc)
+        else
+            damp = 1.0
+        end
         @inbounds for i=ir
             for j=jr
-	        o[q,i-ir[1]+1,j-jr[1]+1]=me.energies[j] - me.energies[i]
+	        o[q,i-ir[1]+1,j-jr[1]+1]=me.ħω[j] - me.ħω[i]
 
                 for m=1:3
 	            v[q,m,i-ir[1]+1,j-jr[1]+1] = me.W[i,j,m] * damp
@@ -374,7 +366,7 @@ function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{In
     d=Dict{Tuple{Int64,Int64},v_cv}()
     for i=ir
         for j=jr
-            d[(i,j)]=v_cv(v[:,:,i-ir[1]+1,j-jr[1]+1],o[:,i-ir[1]+1,j-jr[1]+1],Nkc/2,0,dkc)
+            d[(i,j)]=v_cv(v[:,:,i-ir[1]+1,j-jr[1]+1],o[:,i-ir[1]+1,j-jr[1]+1],dkc)
         end
     end
     d
@@ -385,24 +377,24 @@ end
 export absorption_spectrum
 
 struct absorption_spectrum
-    omega::Array{Float64,1} # frequency (really in eV)
-    v::Array{Complex{Float64},3}
+    ħω::Vector{Float64}            # energy in eV
+    η::Array{ComplexF64,3}   # transition rate (TODO: specify units)
 end
 
 export init_spectrum,incr_absorption!
 
 function init_spectrum(oaxis)
-    absorption_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3))
+    absorption_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3))
 end
 
 function Base.:+(a1::absorption_spectrum,a2::absorption_spectrum)
     a=init_spectrum(a1.omega)
-    a.v .= a1.v .+ a2.v
+    a.η .= a1.η .+ a2.η
     a
 end
 
 function scale!(a1::absorption_spectrum,s::Real)
-    a1.v .*= s
+    a1.η .*= s
 end
 
 # We calculate the spectrum using a histogram approach. Each wavevector in our
@@ -415,19 +407,22 @@ function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,In
             v=d[(vv,cc)]
             # normalizing factor
             # TODO: derive this number from fundamental quantities
-            fact=v.dkc/(a.omega[2]-a.omega[1])*2.2918
-            for q=1:length(v.o)
-                en=v.o[q]
-                den=a.omega[2]-a.omega[1]
+            fact=v.dkc/(a.ħω[2]-a.ħω[1])*2.2918
+            for q=1:length(v.ħω)
+                ħωcv=v.ħω[q]
+                ΔE=a.ħω[2]-a.ħω[1]
                 # calculate which bin this goes into
-                qq=Integer(round(Int,en/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                b=Integer(round(Int,ħωcv/ΔE))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        # Eq. (61) in PRB10
-                        γ = v.v[q,j]/en
-                        # Multiply by normalizing factor and incremement this
-                        # bin in the histogram
-                        a.v[qq,j,j]+=fact*abs2(γ)
+                        for i=1:3
+                            # Eq. (61) in PRB10
+                            γi = v.v[q,i]/ħωcv
+                            γj = v.v[q,j]/ħωcv
+                            # Multiply by normalizing factor and incremement
+                            # this bin in the histogram
+                            a.η[b,i,j]+=fact*conj(γi)*γj
+                        end
                     end
                 end
             end
@@ -435,62 +430,61 @@ function incr_absorption!(a::absorption_spectrum,m::Model,d::Dict{Tuple{Int64,In
     end
 end
 
+# This just does the matrix element calculation for kperp and kdir and then
+# calls incr_absorption!
 function incr_absorption!(a::absorption_spectrum,kperp,kdir;abstol=5e-7)
     s=calc_w_phi_coeffs(kperp,kdir,abstol=abstol)
     if s==nothing
         return
     end
-    d=calc_v(kperp,kdir,s,1:6,7:8)
+    d=calc_v(kperp,kdir,s,1:6,7:8) # valence and conduction bands hard-coded
     incr_absorption!(a,d)
 end
 
-function incr_absorption!(a::absorption_spectrum,l::Array{matrix_element,1})
-    d=calc_v(l,1:6,7:8)
+# This takes the matrix element list and calculates absorption
+function incr_absorption!(a::absorption_spectrum,l::Vector{matrix_element})
+    d=calc_v(l,1:6,7:8)  # valence and conduction bands hard-coded
     incr_absorption!(a,d)
 end
 
 #### two-photon absorption
 
-function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,omegad)
+# calculate γ, defined in last equation of section 5.1 in notes
+function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
     vcv=d[(v,c)]
-    theta=zeros(Complex{Float64},length(vcv.o),3,3)
-    toeV=1240.7/3e5/2/pi
+    γ=zeros(ComplexF64,length(vcv.ħω),3,3)
     for n=1:nbands(m)
         vcn=d[(n,c)]
         vnv=d[(v,n)]
-        for q=1:length(vcv.o)
-            en=vcv.o[q]
-            if vcv.o[q]>3.0
+        for q=1:length(vcv.ħω)
+            en=vcv.ħω[q]
+            if vcv.ħω[q]>3.0  # no clue why this is here
                 continue
             end
-            denom=vcn.o[q]-vnv.o[q]+omegad
             for j=1:3
-                theta[q,j,j]+=vcn.v[q,j]*vnv.v[q,j]/denom
-                for p=1:3
-                    if j!=p
-                        theta[q,j,p]+=(vcn.v[q,j]*vnv.v[q,p]+vcn.v[q,p]*vnv.v[q,j])/denom/2
-                    end
+                for i=1:3
+                    γ[q,i,j]+=vcn.v[q,i]*vnv.v[q,j]/(vcn.ħω[q]-vnv.ħω[q]+ωd)+vcn.v[q,j]*vnv.v[q,i]/(vcn.ħω[q]-vnv.ħω[q]-ωd)
                 end
             end
         end
     end
-    theta .*= (0.5im ./ vcv.o.^2)
-    theta
+    γ .*= (0.5im ./ (vcv.ħω.^2 - ωd^2))  # does not include a whole bunch of other factors
+    γ
 end
 
 export two_photon_absorption_spectrum, init_spectrum2
 
 struct two_photon_absorption_spectrum
-    omega::Array{Float64,1}
-    v::Array{Complex{Float64},5}
+    ħω::Vector{Float64}
+    v::Array{ComplexF64,5}
 end
 
 function init_spectrum2(oaxis)
-    two_photon_absorption_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3,3,3))
+    two_photon_absorption_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3,3,3))
 end
 
 function Base.:+(a1::two_photon_absorption_spectrum,a2::two_photon_absorption_spectrum)
-    a=init_spectrum2(a1.omega)
+    a=init_spectrum2(a1.ħω)
     a.v .= a1.v .+ a2.v
     a
 end
@@ -499,25 +493,26 @@ function scale!(a1::two_photon_absorption_spectrum,s::Real)
     a1.v .*= s
 end
 
+# calculate the quantity in big parentheses in Eq. (139) in the notes
 function incr_absorption!(a::two_photon_absorption_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for v=valence_bands(m)
         for c=conduction_bands(m)
-            theta=calc_little_gamma2(m,d,v,c,0.0)
-            Nkc=size(theta)[1]
+            γ=calc_little_gamma2(m,d,v,c,0.0)
+            Nkc=size(γ)[1]
             vcv=d[(v,c)]
-            fact=4*vcv.dkc/(a.omega[2]-a.omega[1])
+            fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
-                en=vcv.o[q]
-                den=a.omega[2]-a.omega[1]
-                qq=Integer(floor(en/2/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                en=vcv.ħω[q]
+                den=a.ħω[2]-a.ħω[1]
+                b=Integer(floor(en/2/den))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[qq,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        a.v[b,j,j,j,j]+=abs2(γ[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[qq,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[qq,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[qq,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
                             end
                         end
                     end
@@ -529,16 +524,16 @@ end
 
 #######
 
-####### Interference spectrum
+####### 1+2 photon interference spectrum
 export interference_spectrum, init_interference_spectrum
 
 struct interference_spectrum
-    omega::Array{Float64,1}
-    v::Array{Complex{Float64},4}
+    ħω::Array{Float64,1}
+    v::Array{ComplexF64,4}
 end
 
 function init_interference_spectrum(oaxis)
-    interference_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3,3))
+    interference_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3,3))
 end
 
 function Base.:+(a1::interference_spectrum,a2::interference_spectrum)
@@ -551,25 +546,26 @@ function scale!(a1::interference_spectrum,s::Real)
     a1.v .*= s
 end
 
+# calculate the quantity in the last equation of section 10.3.1
 function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for v=valence_bands(m)
         for c=conduction_bands(m)
-            theta=calc_little_gamma2(m,d,v,c,0.0)
-            Nkc=size(theta)[1]
+            γ=calc_little_gamma2(m,d,v,c,0.0)
+            Nkc=size(γ)[1]
             vcv=d[(v,c)]
-            fact=4*vcv.dkc/(a.omega[2]-a.omega[1])
+            fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
-                en=vcv.o[q]
-                den=a.omega[2]-a.omega[1]
-                qq=Integer(floor(en/2/den))+1
-                if ((qq>0) && (qq<length(a.omega)))
+                en=vcv.ħω[q]
+                den=a.ħω[2]-a.ħω[1]
+                b=Integer(floor(en/2/den))+1
+                if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[qq,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[qq,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[qq,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[qq,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
                             end
                         end
                     end
@@ -578,6 +574,8 @@ function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,
         end
     end
 end
+
+######## bundle of lots of spectra
 
 export spectra
 
@@ -600,6 +598,8 @@ end
 
 export abs_one_traj, box_integrate, scale!
 
+# Calculate absorption from one k-space trajectory along direction kdir at
+# kperp. This does the full calculation, starting from the Hamiltonian.
 function abs_one_traj(m,omega,kperp,kdir)
     a=init_spectrum(omega)
     a2=init_spectrum2(omega)
@@ -622,6 +622,7 @@ function abs_one_traj(m,omega,kperp,kdir)
     spectra(a,a2,1)
 end
 
+# Sum spectra inside a square box in kperp space.
 function box_integrate(m,omega,kcent,kwidth,kdir,depth)
     a1=init_spectrum(omega)
     a2=init_spectrum2(omega)

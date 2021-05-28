@@ -40,7 +40,7 @@ for kx in loopRange
         d=calc_v(l,KDotP.valence_bands(m),KDotP.conduction_bands(m))
         incr_absorption!(a,m,d)
     end
-    display(plot(a.omega,real(a.v[:,1,1]),xlims=(1.3,2.3),label="XX"))
-    display(plot!(a.omega,real(a.v[:,2,2]),xlims=(1.3,2.3),label="YY"))
-    display(plot!(a.omega,real(a.v[:,3,3]),xlims=(1.3,2.3),label="ZZ"))
+    display(plot(a.ħω,real(a.η[:,1,1]),xlims=(1.3,2.3),label="XX"))
+    display(plot!(a.ħω,real(a.η[:,2,2]),xlims=(1.3,2.3),label="YY"))
+    display(plot!(a.ħω,real(a.η[:,3,3]),xlims=(1.3,2.3),label="ZZ"))
 end

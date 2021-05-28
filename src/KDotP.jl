@@ -72,7 +72,7 @@ function ufunc(du::Vector{Float64},u::Vector{Float64},p::ode_params,kc::Float64)
     w=p.dir[1]*dHdx(p.m,k)+p.dir[2]*dHdy(p.m,k)+p.dir[3]*dHdz(p.m,k)
     p.wc .= w
 
-    D=reshape(reinterpret(Complex{Float64},@view u[1:2*N^2]),(N,N))
+    D=reshape(reinterpret(ComplexF64,@view u[1:2*N^2]),(N,N))
 
     # find Wg at this k
     fill!(p.W,0.0)
@@ -80,7 +80,7 @@ function ufunc(du::Vector{Float64},u::Vector{Float64},p::ode_params,kc::Float64)
 
     vD=@view du[1:2*N^2] # slicing creates a copy by default
 
-    dD=reshape(reinterpret(Complex{Float64},vD),(N,N))
+    dD=reshape(reinterpret(ComplexF64,vD),(N,N))
     dD.=0.0
 
     # calculate change in band energy
@@ -213,7 +213,7 @@ struct matrix_element
     k::KVector  # the k vector for this point (in xyz basis)
     kc::Float64 # the kc (k_parallel) value for this point
     ħω::Vector{Float64} # vector of band energies
-    W::Array{Complex{Float64},3}
+    W::Array{ComplexF64,3}
 end
 
 export matrix_element_from_coeffs
@@ -249,15 +249,15 @@ function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
     kperp2 = efg_kperp(kperp,kdir)
     l=Array{matrix_element}(undef,length(kcrange))
     N=nbands(m)
-    b1=zeros(Complex{Float64},N,N)
-    b2=zeros(Complex{Float64},N,N)
-    b3=zeros(Complex{Float64},N,N)
+    b1=zeros(ComplexF64,N,N)
+    b2=zeros(ComplexF64,N,N)
+    b3=zeros(ComplexF64,N,N)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
         ħω=c[2*N^2+1:2*N^2+N]
 
-        cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
+        cc=reshape(reinterpret(ComplexF64,@view c[1:2*N^2]),(N,N))
         dHdx!(b1,m,k)
         dHdy!(b2,m,k)
         dHdz!(b3,m,k)
@@ -273,16 +273,16 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
     kperp2 = efg_kperp(kperp,kdir)
     l=Array{matrix_element}(undef,length(kcrange))
     N=nbands(m)
-    b1=zeros(Complex{Float64},N,N)
-    b2=zeros(Complex{Float64},N,N)
-    b3=zeros(Complex{Float64},N,N)
+    b1=zeros(ComplexF64,N,N)
+    b2=zeros(ComplexF64,N,N)
+    b3=zeros(ComplexF64,N,N)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
         ħω=[-1.519-R*norm(k)^2/0.45,R*norm(k)^2/0.08]
 
         #cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
-        cc=zeros(Complex{Float64},N,N)+I
+        cc=zeros(ComplexF64,N,N)+I
         dHdx!(b1,m,kperp2)
         dHdy!(b2,m,kperp2)
         dHdz!(b3,m,kperp2)
@@ -324,14 +324,14 @@ export calc_v
 
 function calc_v(l::Vector{matrix_element},i::Integer,j::Integer;dampfunc=nothing)
     n=length(l)
-    v=zeros(Complex{Float64},n,3)
+    v=zeros(ComplexF64,n,3)
     o=zeros(Float64,n)
     q=1
     for me in l
         o[q]=me.ħω[j] - me.ħω[i]
         v[q,:] .= me.W[i,j,:]
         if dampfunc != nothing
-            v[q,:] .*= dampfunc.(me.kc)
+            v[q,:] .*= dampfunc(me.kc)
         end
         q=q+1
     end
@@ -343,7 +343,7 @@ end
 function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc,dampfunc=nothing)
     n=length(l)
     dkc=l[2].kc-l[1].kc
-    v=zeros(Complex{Float64},n,3,length(ir),length(jr))
+    v=zeros(ComplexF64,n,3,length(ir),length(jr))
     o=zeros(Float64,n,length(ir),length(jr))
     q=1
     for me in l
@@ -378,7 +378,7 @@ export absorption_spectrum
 
 struct absorption_spectrum
     ħω::Vector{Float64}            # energy in eV
-    η::Array{Complex{Float64},3}   # transition rate (TODO: specify units)
+    η::Array{ComplexF64,3}   # transition rate (TODO: specify units)
 end
 
 export init_spectrum,incr_absorption!
@@ -452,7 +452,7 @@ end
 # calculate γ, defined in last equation of section 5.1 in notes
 function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
     vcv=d[(v,c)]
-    γ=zeros(Complex{Float64},length(vcv.ħω),3,3)
+    γ=zeros(ComplexF64,length(vcv.ħω),3,3)
     for n=1:nbands(m)
         vcn=d[(n,c)]
         vnv=d[(v,n)]
@@ -476,11 +476,11 @@ export two_photon_absorption_spectrum, init_spectrum2
 
 struct two_photon_absorption_spectrum
     ħω::Vector{Float64}
-    v::Array{Complex{Float64},5}
+    v::Array{ComplexF64,5}
 end
 
 function init_spectrum2(oaxis)
-    two_photon_absorption_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3,3,3))
+    two_photon_absorption_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3,3,3))
 end
 
 function Base.:+(a1::two_photon_absorption_spectrum,a2::two_photon_absorption_spectrum)
@@ -529,11 +529,11 @@ export interference_spectrum, init_interference_spectrum
 
 struct interference_spectrum
     ħω::Array{Float64,1}
-    v::Array{Complex{Float64},4}
+    v::Array{ComplexF64,4}
 end
 
 function init_interference_spectrum(oaxis)
-    interference_spectrum(oaxis,zeros(Complex{Float64},length(oaxis),3,3,3))
+    interference_spectrum(oaxis,zeros(ComplexF64,length(oaxis),3,3,3))
 end
 
 function Base.:+(a1::interference_spectrum,a2::interference_spectrum)

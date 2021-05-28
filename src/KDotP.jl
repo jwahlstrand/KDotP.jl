@@ -455,30 +455,27 @@ end
 
 #### two-photon absorption
 
+# calculate γ, defined in last equation of section 5.1 in notes
 function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
     vcv=d[(v,c)]
-    theta=zeros(Complex{Float64},length(vcv.ħω),3,3)
+    γ=zeros(Complex{Float64},length(vcv.ħω),3,3)
     for n=1:nbands(m)
         vcn=d[(n,c)]
         vnv=d[(v,n)]
-        for q=1:length(vcv.o)
+        for q=1:length(vcv.ħω)
             en=vcv.ħω[q]
-            if vcv.ħω[q]>3.0
+            if vcv.ħω[q]>3.0  # no clue why this is here
                 continue
             end
-            denom=vcn.ħω[q]-vnv.ħω[q]+ωd
             for j=1:3
-                theta[q,j,j]+=vcn.v[q,j]*vnv.v[q,j]/denom
-                for p=1:3
-                    if j!=p
-                        theta[q,j,p]+=(vcn.v[q,j]*vnv.v[q,p]+vcn.v[q,p]*vnv.v[q,j])/denom/2
-                    end
+                for i=1:3
+                    γ[q,i,j]+=vcn.v[q,i]*vnv.v[q,j]/(vcn.ħω[q]-vnv.ħω[q]+ωd)+vcn.v[q,j]*vnv.v[q,i]/(vcn.ħω[q]-vnv.ħω[q]-ωd)
                 end
             end
         end
     end
-    theta .*= (0.5im ./ vcv.ħω.^2)
-    theta
+    γ .*= (0.5im ./ (vcv.ħω.^2 - ωd^2)  # does not include a whole bunch of other factors
+    γ
 end
 
 export two_photon_absorption_spectrum, init_spectrum2
@@ -502,11 +499,12 @@ function scale!(a1::two_photon_absorption_spectrum,s::Real)
     a1.v .*= s
 end
 
+# calculate the quantity in big parentheses in Eq. (139) in the notes
 function incr_absorption!(a::two_photon_absorption_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for v=valence_bands(m)
         for c=conduction_bands(m)
-            theta=calc_little_gamma2(m,d,v,c,0.0)
-            Nkc=size(theta)[1]
+            γ=calc_little_gamma2(m,d,v,c,0.0)
+            Nkc=size(γ)[1]
             vcv=d[(v,c)]
             fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
@@ -515,12 +513,12 @@ function incr_absorption!(a::two_photon_absorption_spectrum,m::Model,d::Dict{Tup
                 b=Integer(floor(en/2/den))+1
                 if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
+                        a.v[b,j,j,j,j]+=abs2(γ[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[b,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[b,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[b,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
                             end
                         end
                     end
@@ -554,11 +552,12 @@ function scale!(a1::interference_spectrum,s::Real)
     a1.v .*= s
 end
 
+# calculate the quantity in the last equation of section 10.3.1
 function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for v=valence_bands(m)
         for c=conduction_bands(m)
-            theta=calc_little_gamma2(m,d,v,c,0.0)
-            Nkc=size(theta)[1]
+            γ=calc_little_gamma2(m,d,v,c,0.0)
+            Nkc=size(γ)[1]
             vcv=d[(v,c)]
             fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
             for q=1:Nkc
@@ -570,9 +569,9 @@ function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,
                         a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[b,j,j,p,p]+=conj(theta[q,j,j])*theta[q,p,p]*fact
-                                a.v[b,j,p,p,j]+=conj(theta[q,j,p])*theta[q,p,j]*fact
-                                a.v[b,j,p,j,p]+=conj(theta[q,j,p])*theta[q,j,p]*fact
+                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
+                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
+                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
                             end
                         end
                     end

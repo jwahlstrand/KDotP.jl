@@ -16,26 +16,16 @@ export Model
 
 abstract type Model end
 
-function dHdx(m::Model,k)
+function dHdi(m::Model,k,f!)
     n=nbands(m)
     h=zeros(Complex{Float64},n,n)
-    dHdx!(h,m,k)
+    f!(h,m,k)
     Hermitian(h)
 end
 
-function dHdy(m::Model,k)
-    n=nbands(m)
-    h=zeros(Complex{Float64},n,n)
-    dHdy!(h,m,k)
-    Hermitian(h)
-end
-
-function dHdz(m::Model,k)
-    n=nbands(m)
-    h=zeros(Complex{Float64},n,n)
-    dHdz!(h,m,k)
-    Hermitian(h)
-end
+dHdx(m::Model,k)=dHdi(m,k,dHdx!)
+dHdy(m::Model,k)=dHdi(m,k,dHdy!)
+dHdz(m::Model,k)=dHdi(m,k,dHdz!)
 
 export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe,GaAs_nr,InP,GaSb,InSb
 
@@ -222,7 +212,7 @@ export matrix_element
 struct matrix_element
     k::KVector  # the k vector for this point (in xyz basis)
     kc::Float64 # the kc (k_parallel) value for this point
-    energies::Vector{Float64}
+    ħω::Vector{Float64} # vector of band energies
     W::Array{Complex{Float64},3}
 end
 
@@ -231,25 +221,25 @@ export matrix_element_from_coeffs
 "Calculate Wx, Wy, and Wz matrix elements from a u vector"
 function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc::Float64)
     n=nbands(m)
-    energies=u[2*n*n+1:2*n*n+n]
+    ħω=u[2*n*n+1:2*n*n+n]
 
     # 3 allocs here
     D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
     W = matrix_transform3(D,dHdx(m,k),dHdy(m,k),dHdz(m,k))
 
-    matrix_element(k,kc,energies,W)
+    matrix_element(k,kc,ħω,W)
 end
 
 function matrix_element_from_coeffs(m::Model,k,u::Vector{Float64},kc,i::Integer)
     n=nbands(m)
-    energies=u[2*n*n+1:2*n*n+n]
+    ħω=u[2*n*n+1:2*n*n+n]
 
     D=reshape(reinterpret(ComplexF64,@view u[1:2*n*n]),(n,n))
 
     W = matrix_transform3(D,dHdx(m,k[1]),dHdy(m,k[2]),dHdz(m,k[3]),i)
 
-    matrix_element(k,kc,energies,W)
+    matrix_element(k,kc,ħω,W)
 end
 
 export matrix_element_list
@@ -265,7 +255,7 @@ function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
-        energies=c[2*N^2+1:2*N^2+N]
+        ħω=c[2*N^2+1:2*N^2+N]
 
         cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
         dHdx!(b1,m,k)
@@ -274,7 +264,7 @@ function matrix_element_list(m::Model,kperp,kdir,kcrange,ca::AbstractArray)
 
         W = matrix_transform3(cc,b1,b2,b3)
 
-        l[q]=matrix_element(k,kcrange[q],energies,W)
+        l[q]=matrix_element(k,kcrange[q],ħω,W)
     end
     l
 end
@@ -289,7 +279,7 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
     for q in 1:length(kcrange)
         c=ca[q]
         k=kperp2+kcrange[q]*kdir
-        energies=[-1.519-R*norm(k)^2/0.45,R*norm(k)^2/0.08]
+        ħω=[-1.519-R*norm(k)^2/0.45,R*norm(k)^2/0.08]
 
         #cc=reshape(reinterpret(Complex{Float64},@view c[1:2*N^2]),(N,N))
         cc=zeros(Complex{Float64},N,N)+I
@@ -307,7 +297,7 @@ function matrix_element_list(m::Parabolic,kperp,kdir,kcrange,ca::AbstractArray)
         W[1,1,3]=-2*R*k[3]/0.45
         W[2,2,3]=2*R*k[3]/0.08
 
-        l[q]=matrix_element(k,kcrange[q],energies,W)
+        l[q]=matrix_element(k,kcrange[q],ħω,W)
     end
     l
 end
@@ -332,16 +322,17 @@ export calc_v
 # this is the same as v_{cv}(k), which is used in Eq. (61) in PRB10 to calculate
 # absorption with no DC field
 
-function calc_v(l::Vector{matrix_element},i::Integer,j::Integer)
+function calc_v(l::Vector{matrix_element},i::Integer,j::Integer;dampfunc=nothing)
     n=length(l)
-    denom=KCMAX^4
     v=zeros(Complex{Float64},n,3)
     o=zeros(Float64,n)
     q=1
     for me in l
-        o[q]=me.energies[j] - me.energies[i]
-        v[q,:] .= me.W[i,j,:] .* exp(-4*abs(me.kc)^4/denom)
-
+        o[q]=me.ħω[j] - me.ħω[i]
+        v[q,:] .= me.W[i,j,:]
+        if dampfunc != nothing
+            v[q,:] .*= dampfunc.(me.kc)
+        end
         q=q+1
     end
     dkc=l[2].kc-l[1].kc
@@ -349,18 +340,21 @@ function calc_v(l::Vector{matrix_element},i::Integer,j::Integer)
     v_cv(v,o,dkc)
 end
 
-function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc)
+function calc_v(l::Array{matrix_element,1},ir::UnitRange{Int64},jr::UnitRange{Int64};Nkc=default_Nkc,dampfunc=nothing)
     n=length(l)
     dkc=l[2].kc-l[1].kc
-    denom=KCMAX^4
     v=zeros(Complex{Float64},n,3,length(ir),length(jr))
     o=zeros(Float64,n,length(ir),length(jr))
     q=1
     for me in l
-        damp = exp(-4*abs(me.kc)^4/denom)
+        if dampfunc != nothing
+            damp = dampfunc(me.kc)
+        else
+            damp = 1.0
+        end
         @inbounds for i=ir
             for j=jr
-	        o[q,i-ir[1]+1,j-jr[1]+1]=me.energies[j] - me.energies[i]
+	        o[q,i-ir[1]+1,j-jr[1]+1]=me.ħω[j] - me.ħω[i]
 
                 for m=1:3
 	            v[q,m,i-ir[1]+1,j-jr[1]+1] = me.W[i,j,m] * damp
@@ -474,7 +468,7 @@ function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
             end
         end
     end
-    γ .*= (0.5im ./ (vcv.ħω.^2 - ωd^2)  # does not include a whole bunch of other factors
+    γ .*= (0.5im ./ (vcv.ħω.^2 - ωd^2))  # does not include a whole bunch of other factors
     γ
 end
 

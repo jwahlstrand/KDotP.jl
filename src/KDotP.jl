@@ -476,7 +476,7 @@ export two_photon_absorption_spectrum, init_spectrum2
 
 struct two_photon_absorption_spectrum
     ħω::Vector{Float64}
-    v::Array{ComplexF64,5}
+    η::Array{ComplexF64,5}
 end
 
 function init_spectrum2(oaxis)
@@ -485,12 +485,12 @@ end
 
 function Base.:+(a1::two_photon_absorption_spectrum,a2::two_photon_absorption_spectrum)
     a=init_spectrum2(a1.ħω)
-    a.v .= a1.v .+ a2.v
+    a.η .= a1.η .+ a2.η
     a
 end
 
 function scale!(a1::two_photon_absorption_spectrum,s::Real)
-    a1.v .*= s
+    a1.η .*= s
 end
 
 # calculate the quantity in big parentheses in Eq. (139) in the notes
@@ -507,12 +507,12 @@ function incr_absorption!(a::two_photon_absorption_spectrum,m::Model,d::Dict{Tup
                 b=Integer(floor(en/2/den))+1
                 if ((b>0) && (b<length(a.ħω)))
                     for j=1:3
-                        a.v[b,j,j,j,j]+=abs2(γ[q,j,j])*fact
+                        a.η[b,j,j,j,j]+=abs2(γ[q,j,j])*fact
                         for p=1:3
                             if j!=p
-                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
-                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
-                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
+                                a.η[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
+                                a.η[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
+                                a.η[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
                             end
                         end
                     end
@@ -529,7 +529,7 @@ export interference_spectrum, init_interference_spectrum
 
 struct interference_spectrum
     ħω::Array{Float64,1}
-    v::Array{ComplexF64,4}
+    η::Array{ComplexF64,4}
 end
 
 function init_interference_spectrum(oaxis)
@@ -538,34 +538,33 @@ end
 
 function Base.:+(a1::interference_spectrum,a2::interference_spectrum)
     a=init_interference_spectrum(a1.omega)
-    a.v .= a1.v .+ a2.v
+    a.η .= a1.η .+ a2.η
     a
 end
 
 function scale!(a1::interference_spectrum,s::Real)
-    a1.v .*= s
+    a1.η .*= s
 end
 
 # calculate the quantity in the last equation of section 10.3.1
 function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,Int64},v_cv})
     for v=valence_bands(m)
         for c=conduction_bands(m)
-            γ=calc_little_gamma2(m,d,v,c,0.0)
+            γ2=calc_little_gamma2(m,d,v,c,0.0)
             Nkc=size(γ)[1]
             vcv=d[(v,c)]
-            fact=4*vcv.dkc/(a.ħω[2]-a.ħω[1])
+            fact=1*vcv.dkc/(a.ħω[2]-a.ħω[1]) # TODO set this
             for q=1:Nkc
+                println(vcv.v[q])
                 en=vcv.ħω[q]
                 den=a.ħω[2]-a.ħω[1]
                 b=Integer(floor(en/2/den))+1
                 if ((b>0) && (b<length(a.ħω)))
-                    for j=1:3
-                        a.v[b,j,j,j,j]+=abs2(theta[q,j,j])*fact
-                        for p=1:3
-                            if j!=p
-                                a.v[b,j,j,p,p]+=conj(γ[q,j,j])*γ[q,p,p]*fact
-                                a.v[b,j,p,p,j]+=conj(γ[q,j,p])*γ[q,p,j]*fact
-                                a.v[b,j,p,j,p]+=conj(γ[q,j,p])*γ[q,j,p]*fact
+                    for l=1:3
+                        γl = vcv.v[q,i]/en
+                        for i=1:3
+                            for j=1:3
+                                a.η[b,i,j,l]+=conj(γ2[q,i,j])*γl[q,l]*fact
                             end
                         end
                     end

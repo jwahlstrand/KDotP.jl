@@ -564,7 +564,7 @@ function incr_absorption!(a::interference_spectrum,m::Model,d::Dict{Tuple{Int64,
                         γl = vcv.v[q,i]/en
                         for i=1:3
                             for j=1:3
-                                a.η[b,i,j,l]+=conj(γ2[q,i,j])*γl[q,l]*fact
+                                a.η[b,i,j,l]+=conj(γ2[q,i,j])*γl[q,l]*fact #Should this include the complex conjugate
                             end
                         end
                     end

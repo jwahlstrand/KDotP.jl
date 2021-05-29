@@ -192,14 +192,6 @@ function H(m::Semiconductor14nr,k)
     return Hermitian(h)
 end
 
-function dHdq!(h,m::Zincblende14nr,kq,Pq)
-    fill!(h,0.0)
-
-    h.+=Pq
-    for i=1:14
-        h[i,i]+=2*R*kq
-    end
-end
 function dHdx!(h,m::Semiconductor14nr,k)
     fill!(h,0.0)
 
@@ -328,28 +320,6 @@ function fill_diags(h,params::Parameters)
 end
 fill_diags(h,m::Semiconductor)=fill_diags(h,m.params)
 
-function d2Hdx2()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
-    g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-
-    fill_diags(h)
-    h[5,5]=-2*R*(g1-g2)
-    h[12,12]=h[5,5]
-    h[6,6]=-2*R*(g1+g2)
-    h[13,13]=h[6,6]
-    h[7,7]=-2*R*g1
-    h[14,14]=h[7,7]
-    h[5,6]=sqrt(3)*2*R*g2
-    h[5,7]=-2*R*sqrt(2)*g2
-    h[6,7]=sqrt(3)*sqrt(2)*2*R*g2
-    h[12,13]=-2*sqrt(3)*R*g2
-    h[12,14]=h[5,7]
-    h[13,14]=-2*sqrt(3)*sqrt(2)*R*g2
-    h
-end
 function d2Hdx2(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R
@@ -374,18 +344,6 @@ function d2Hdx2(params::Parameters)
 end
 d2Hdx2(m::Semiconductor)=d2Hdx2(m.params)
 
-function d2Hdxdy()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-
-    h[5,6]=-1im*sqrt(3)*R*2*g3
-    h[6,7]=1im*sqrt(3)*sqrt(2)*R*2*g3
-    h[12,13]=-1im*sqrt(3)*R*2*g3
-    h[13,14]=1im*sqrt(3)*sqrt(2)*R*g3*2
-    h
-end
 function d2Hdxdy(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R
@@ -400,20 +358,6 @@ function d2Hdxdy(params::Parameters)
 end
 d2Hdxdy(m::Semiconductor)=d2Hdxdy(m.params)
 
-function d2Hdxdz()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-
-    h[5,13]=2*sqrt(3)*g3*R
-    h[5,14]=6*g3*R/sqrt(2)
-    h[6,12]=2*sqrt(3)*g3*R
-    h[6,14]=-2*sqrt(3)/sqrt(2)*g3*R
-    h[7,12]=-6*g3*R/sqrt(2)
-    h[7,13]=h[6,14]
-    h
-end
 function d2Hdxdz(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R
@@ -430,29 +374,6 @@ function d2Hdxdz(params::Parameters)
 end
 d2Hdxdz(m::Semiconductor)=d2Hdxdz(m.params)
 
-function d2Hdy2()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
-    g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-
-    fill_diags(h)
-    h[5,5]=-2*R*(g1-g2)
-    h[12,12]=h[5,5]
-    h[6,6]=-2*R*(g1+g2)
-    h[13,13]=h[6,6]
-    h[7,7]=-2*R*g1
-    h[14,14]=h[7,7]
-
-    h[5,6]=-sqrt(3)*2*R*g2
-    h[5,7]=-2*R*sqrt(2)*g2
-    h[6,7]=-sqrt(3)*sqrt(2)*2*R*g2
-    h[12,13]=2*sqrt(3)*R*g2
-    h[12,14]=h[5,7]
-    h[13,14]=2*sqrt(3)*sqrt(2)*R*g2
-    h
-end
 function d2Hdy2(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R
@@ -478,20 +399,6 @@ function d2Hdy2(params::Parameters)
 end
 d2Hdy2(m::Semiconductor)=d2Hdy2(m.params)
 
-function d2Hdydz()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-
-    h[5,13]=2im*sqrt(3)*g3*R
-    h[5,14]=-6im*g3*R/sqrt(2)
-    h[6,12]=2im*sqrt(3)*g3*R
-    h[6,14]=-2im*sqrt(3)/sqrt(2)*g3*R
-    h[7,12]=6im*g3*R/sqrt(2)
-    h[7,13]=h[6,14]
-    h
-end
 function d2Hdydz(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R
@@ -508,25 +415,6 @@ function d2Hdydz(params::Parameters)
 end
 d2Hdydz(m::Semiconductor)=d2Hdydz(m.params)
 
-function d2Hdz2()
-    h=zeros(Complex{Float64},14,14)
-    EP=P0^2/R
-    EQ=Q^2/R
-    g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
-    g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-
-    fill_diags(h)
-    h[5,5]=-2*R*(g1-g2)-6*R*g2
-    h[12,12]=h[5,5]
-    h[6,6]=-2*R*(g1+g2)+6*R*g2
-    h[13,13]=h[6,6]
-    h[7,7]=-2*R*g1
-    h[14,14]=h[7,7]
-
-    h[5,7]=4*R*sqrt(2)*g2
-    h[12,14]=h[5,7]
-    h
-end
 function d2Hdz2(params::Parameters)
     h=zeros(Complex{Float64},14,14)
     EP=params.P0^2/R

@@ -112,9 +112,6 @@ abstract type Semiconductor <: Model end
 
 struct Semiconductor14 <: Semiconductor
     params::Parameters
-    px::Array{Complex{Float64},2}
-    py::Array{Complex{Float64},2}
-    pz::Array{Complex{Float64},2}
     Px::Array{Complex{Float64},2}
     Py::Array{Complex{Float64},2}
     Pz::Array{Complex{Float64},2}
@@ -129,9 +126,6 @@ end
 
 struct Semiconductor14nr <: Semiconductor
     params::Parameters
-    px::Array{Complex{Float64},2}
-    py::Array{Complex{Float64},2}
-    pz::Array{Complex{Float64},2}
     Px::Array{Complex{Float64},2}
     Py::Array{Complex{Float64},2}
     Pz::Array{Complex{Float64},2}
@@ -141,14 +135,14 @@ end
 function Semiconductor14(params::Parameters)
     px,py,pz=generate_px(params),generate_py(params),generate_pz(params)
     Px,Py,Pz=Hermitian(px),Hermitian(1im*py),Hermitian(pz)
-    return Semiconductor14(params,px,py,pz,Px,Py,Pz,d2Hdx2(params),d2Hdy2(params),d2Hdz2(params),d2Hdxdy(params),d2Hdxdz(params),d2Hdydz(params),Parabolic(params))
+    return Semiconductor14(params,Px,Py,Pz,d2Hdx2(params),d2Hdy2(params),d2Hdz2(params),d2Hdxdy(params),d2Hdxdz(params),d2Hdydz(params),Parabolic(params))
 end
 Semiconductor14(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 
 function Semiconductor14nr(params::Parameters)
     px,py,pz=generate_px(params),generate_py(params),generate_pz(params)
     Px,Py,Pz=Hermitian(px),Hermitian(1im*py),Hermitian(pz)
-    return Semiconductor14nr(params,px,py,pz,Px,Py,Pz,Parabolic(params))
+    return Semiconductor14nr(params,Px,Py,Pz,Parabolic(params))
 end
 Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14nr(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 

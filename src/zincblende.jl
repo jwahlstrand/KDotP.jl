@@ -1,17 +1,17 @@
 struct Parameters
-    Eg::AbstractFloat
-    D0::AbstractFloat
-    E0p::AbstractFloat
-    D0p::AbstractFloat
-    db::AbstractFloat
-    P0::AbstractFloat
-    Q::AbstractFloat
-    P0p::AbstractFloat
-    G1L::AbstractFloat
-    G2L::AbstractFloat
-    G3L::AbstractFloat
-    F::AbstractFloat
-    Ck::AbstractFloat
+    Eg::Float64
+    D0::Float64
+    E0p::Float64
+    D0p::Float64
+    db::Float64
+    P0::Float64
+    Q::Float64
+    P0p::Float64
+    G1L::Float64
+    G2L::Float64
+    G3L::Float64
+    F::Float64
+    Ck::Float64
 end
 
 function generate_px(params::Parameters)
@@ -97,16 +97,6 @@ function generate_pz(params::Parameters)
     return pz
 end
 
-struct Zincblende14nr <: Model end # put parameters in struct?
-struct Zincblende14 <: Model
-    d2Hdx2::Array{Complex{Float64},2}
-    d2Hdy2::Array{Complex{Float64},2}
-    d2Hdz2::Array{Complex{Float64},2}
-    d2Hdxdy::Array{Complex{Float64},2}
-    d2Hdxdz::Array{Complex{Float64},2}
-    d2Hdydz::Array{Complex{Float64},2}
-end
-
 ###################
 # Trivial 2-band model for checking output with analytical solutions
 
@@ -145,12 +135,6 @@ struct Semiconductor14nr <: Semiconductor
     Px::Array{Complex{Float64},2}
     Py::Array{Complex{Float64},2}
     Pz::Array{Complex{Float64},2}
-    d2Hdx2::Array{Complex{Float64},2}
-    d2Hdy2::Array{Complex{Float64},2}
-    d2Hdz2::Array{Complex{Float64},2}
-    d2Hdxdy::Array{Complex{Float64},2}
-    d2Hdxdz::Array{Complex{Float64},2}
-    d2Hdydz::Array{Complex{Float64},2}
     parabolic::Parabolic
 end
 
@@ -164,7 +148,7 @@ Semiconductor14(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::Abst
 function Semiconductor14nr(params::Parameters)
     px,py,pz=generate_px(params),generate_py(params),generate_pz(params)
     Px,Py,Pz=Hermitian(px),Hermitian(1im*py),Hermitian(pz)
-    return Semiconductor14(params,px,py,pz,Px,Py,Pz,d2Hdx2(params),d2Hdy2(params),d2Hdz2(params),d2Hdxdy(params),d2Hdxdz(params),d2Hdydz(params),Parabolic(params))
+    return Semiconductor14nr(params,px,py,pz,Px,Py,Pz,Parabolic(params))
 end
 Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14nr(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 
@@ -172,42 +156,6 @@ const ϵ = 0.0
 
 # Hamiltonians and derivatives
 
-## Zincblende14nr
-function H(m::Zincblende14nr,k)
-    h=zeros(Complex{Float64},14,14)
-
-    E1 = E0p - Eg
-
-    G0 = -Eg-D0
-    G1 = E1+D0p
-
-    h[1,1]=h[8,8]=G1
-    h[2,2]=h[9,9]=G1+ϵ
-
-    h[3,3]=E1
-    h[10,10]=E1+ϵ
-
-    h[4,4]=0.0
-    h[11,11]=ϵ
-
-    h[5,5]=-Eg
-    h[12,12]=-Eg+ϵ
-
-    h[6,6]=-Eg
-    h[13,13]=-Eg+ϵ
-
-    h[7,7]=G0
-    h[14,14]=G0+ϵ
-
-    Rk2=R*sum(abs2,k)
-
-    for i=1:14
-        h[i,i] += Rk2
-    end
-    h.=h .+ Px .* k[1] .+ Py .* k[2] .+ Pz .* k[3]
-
-    return Hermitian(h)
-end
 function H(m::Semiconductor14nr,k)
     h=zeros(Complex{Float64},14,14)
 
@@ -261,14 +209,6 @@ function dHdx!(h,m::Semiconductor14nr,k)
     end
 end
 
-function dHdy!(h,m::Zincblende14nr,k)
-    fill!(h,0.0)
-
-    h.+=Py
-    for i=1:14
-        h[i,i]+=2*R*k[2]
-    end
-end
 function dHdy!(h,m::Semiconductor14nr,k)
     fill!(h,0.0)
 
@@ -278,14 +218,6 @@ function dHdy!(h,m::Semiconductor14nr,k)
     end
 end
 
-function dHdz!(h,m::Zincblende14nr,k)
-    fill!(h,0.0)
-
-    h.+=Pz
-    for i=1:14
-        h[i,i]+=2*R*k[3]
-    end
-end
 function dHdz!(h,m::Semiconductor14nr,k)
     fill!(h,0.0)
 
@@ -294,10 +226,6 @@ function dHdz!(h,m::Semiconductor14nr,k)
         h[i,i]+=2*R*k[3]
     end
 end
-
-nbands(m::Zincblende14nr)=14
-valence_bands(m::Zincblende14nr) = 1:6
-conduction_bands(m::Zincblende14nr) = 7:8
 
 nbands(m::Semiconductor14)=14
 valence_bands(m::Semiconductor14) =1:6
@@ -308,89 +236,6 @@ valence_bands(m::Semiconductor14nr) =1:6
 conduction_bands(m::Semiconductor14nr) = 7:8
 
 export H,dHdx,dHdy,dHdz
-
-## Zincblende14
-nbands(m::Zincblende14)=14
-valence_bands(m::Zincblende14) = 1:6
-conduction_bands(m::Zincblende14) = 7:8
-
-function H(m::Zincblende14,k)
-    h=zeros(Complex{Float64},14,14)
-
-    Ek=R*sum(abs2,k)
-    Ez=R*k[3]^2
-    E2zmxy=R*((k[3]+k[1])*(k[3]-k[1])+(k[3]+k[2])*(k[3]-k[2]))
-
-    kx=k[1]
-    ky=k[2]
-    kz=k[3]
-
-    EP=P0^2/R
-    EQ=Q^2/R
-    g1=G1L-EP/(3*Eg)-EQ/(3*E0p)-EQ/(3*(E0p+D0p))
-    g2=G2L-EP/(6*Eg)+EQ/(6*E0p)
-    g3=G3L-EP/(6*Eg)-EQ/(6*E0p)
-
-    E0 = -Eg
-    E1 = E0p - Eg
-
-    G0 = -Eg-D0
-    G1 = E1+D0p
-
-    G1p=(G1+E0)/2+sqrt((G1-E0)*(G1-E0)/4-db*db/9)
-    E0pp=(G1+E0)/2-sqrt((G1-E0)*(G1-E0)/4-db*db/9)
-    G0p=(G0+E1)/2-sqrt((G0-E1)*(G0-E1)/4-4*db*db/9)
-    E1p=(G0+E1)/2+sqrt((G0-E1)*(G0-E1)/4-4*db*db/9)
-
-    h[1,1]=h[8,8]=G1p+Ek
-    h[2,2]=h[9,9]=G1p+Ek+ϵ
-
-    h[3,3]=E1p+Ek
-    h[10,10]=E1p+Ek+ϵ
-
-    h[4,4]=2*Ek*F+Ek
-    h[11,11]=2*Ek*F+Ek+ϵ
-
-    h[5,5]=E0pp-Ek*(g1-g2)-3*Ez*g2
-    h[12,12]=E0pp-Ek*(g1-g2)-3*Ez*g2+ϵ
-
-    h[6,6]=E0pp-Ek*(g1+g2)+3*Ez*g2
-    h[13,13]=E0pp-Ek*(g1+g2)+3*Ez*g2+ϵ
-
-    h[7,7]=G0p-Ek*g1
-    h[14,14]=G0p-Ek*g1+ϵ
-
-    kp = complex(kx,ky)/sqrt(2)
-    km=conj(kp)
-
-    h[1,5]=db/3.0
-    h[2,6]=conj(h[1,5])
-    h[3,7]=-2*db/3.0
-    h[5,6]=sqrt(3)*R*(kx+ky)*(kx-ky)*g2-Ck*kz-1im*sqrt(3)*R*kx*ky*2.0*g3
-    h[5,7]=sqrt(2)*g2*E2zmxy
-    h[5,12]=-sqrt(3)/sqrt(2)*Ck*kp
-    h[5,13]=2*sqrt(3)*sqrt(2)*g3*R*kz*kp-Ck*km/sqrt(2)
-    h[5,14]=6*g3*R*kz*km
-
-    h[6,7]=sqrt(3)*sqrt(2)*R*(kx+ky)*(kx-ky)*g2+1im*sqrt(3)*sqrt(2)*R*kx*ky*2.0*g3
-    h[6,12]=2*sqrt(3)*sqrt(2)*g3*R*kz*kp+Ck*km/sqrt(2)
-    h[6,13]=-sqrt(3)/sqrt(2)*Ck*kp
-    h[6,14]=-2*sqrt(3)*g3*R*kz*kp
-
-    h[7,12]=-6*g3*R*kz*km
-    h[7,13]=h[6,14]
-    h[8,12]=h[1,5]
-    h[9,13]=h[1,5]
-    h[10,14]=h[2,6]
-
-    h[12,13]=sqrt(3)*R*(kx+ky)*(ky-kx)*g2-Ck*kz-1im*sqrt(3)*R*kx*ky*2.0*g3
-    h[12,14]=h[4,6]
-    h[13,14]=sqrt(3)*sqrt(2)*R*(kx+ky)*(ky-kx)*g2+1im*sqrt(3)*sqrt(2)*R*kx*ky*2.0*g3
-
-    h.=h .+ Px .* k[1] .+ Py .* k[2] .+ Pz .* k[3]
-
-    return Hermitian(h)
-end
 
 function H(m::Semiconductor14,k)
     h=zeros(Complex{Float64},14,14)
@@ -703,20 +548,6 @@ function d2Hdz2(params::Parameters)
 end
 d2Hdz2(m::Semiconductor)=d2Hdz2(m.params)
 
-function dHdx!(h,m::Zincblende14,k)
-    fill!(h,0.0)
-
-    h.+=Px
-
-    h[5,12]+=-sqrt(3)*Ck/2
-    h[5,13]+=-Ck/2
-    h[6,12]+=Ck/2
-    h[6,13]+=-sqrt(3)*Ck/2
-
-    axpy!(k[1],m.d2Hdx2,h)
-    axpy!(k[2],m.d2Hdxdy,h)
-    axpy!(k[3],m.d2Hdxdz,h)
-end
 function dHdx!(h,m::Semiconductor14,k)
     fill!(h,0.0)
 
@@ -732,24 +563,6 @@ function dHdx!(h,m::Semiconductor14,k)
     axpy!(k[3],m.d2Hdxdz,h)
 end
 
-function Zincblende14()
-    Zincblende14(d2Hdx2(),d2Hdy2(),d2Hdz2(),d2Hdxdy(),d2Hdxdz(),d2Hdydz())
-end
-
-function dHdy!(h,m::Zincblende14,k)
-    fill!(h,0.0)
-
-    h.+=Py
-
-    h[5,12]+=-1im*sqrt(3)*Ck/2
-    h[5,13]+=1im*Ck/2
-    h[6,12]+=-1im*Ck/2
-    h[6,13]+=-1im*sqrt(3)*Ck/2
-
-    axpy!(k[1],m.d2Hdxdy,h)
-    axpy!(k[2],m.d2Hdy2,h)
-    axpy!(k[3],m.d2Hdydz,h)
-end
 function dHdy!(h,m::Semiconductor14,k)
     fill!(h,0.0)
 
@@ -765,18 +578,6 @@ function dHdy!(h,m::Semiconductor14,k)
     axpy!(k[3],m.d2Hdydz,h)
 end
 
-function dHdz!(h,m::Zincblende14,k)
-    fill!(h,0.0)
-
-    h.+=Pz
-
-    h[5,6]+=-Ck
-    h[12,13]+=-Ck
-
-    axpy!(k[1],m.d2Hdxdz,h)
-    axpy!(k[2],m.d2Hdydz,h)
-    axpy!(k[3],m.d2Hdz2,h)
-end
 function dHdz!(h,m::Semiconductor14,k)
     fill!(h,0.0)
 
@@ -840,13 +641,6 @@ push!(degen_list,normalize(KVector(-1.0,1.0,1.0)))
 push!(degen_list,normalize(KVector(1.0,-1.0,1.0)))
 push!(degen_list,normalize(KVector(1.0,1.0,-1.0)))
 
-function trajectory_intersects_bad(m::Zincblende14, kperp, g)
-    return any(bad->distance_between_lines(kperp,origin,g,bad)<1e-4,degen_list)
-end
-
-function trajectory_intersects_bad(m::Zincblende14nr, kperp, g)
-    return any(bad->distance_between_lines(kperp,origin,g,bad)<1e-4,degen_list)
-end
 function trajectory_intersects_bad(m::Semiconductor, kperp, g)
     return any(bad->distance_between_lines(kperp,origin,g,bad)<1e-4,degen_list)
 end

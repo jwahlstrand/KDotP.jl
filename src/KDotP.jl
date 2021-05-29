@@ -468,7 +468,7 @@ function calc_little_gamma2(m::Model,d::Dict{Tuple{Int64,Int64},v_cv},v,c,ωd)
             end
         end
     end
-    γ .*= (0.5im ./ (vcv.ħω.^2 - ωd^2))  # does not include a whole bunch of other factors
+    γ .*= (0.5im ./ (vcv.ħω.^2 .- ωd^2))  # does not include a whole bunch of other factors
     γ
 end
 

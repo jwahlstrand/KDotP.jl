@@ -8,8 +8,7 @@ oaxis=0.0:0.01:3.0
 a=init_spectrum(oaxis)
 
 const Nkc=8192
-#m=Zincblende14nr()
-m=GaAs().parabolic
+m=GaAs_nr()
 n=KDotP.nbands(m)
 
 du=zeros(Float64,2*n^2+n)

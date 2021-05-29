@@ -187,27 +187,24 @@ function H(m::Semiconductor14nr,k)
 end
 
 function dHdx!(h,m::Semiconductor14nr,k)
-    fill!(h,0.0)
+    copy!(h,m.Px)
 
-    h.+=m.Px
     for i=1:14
         h[i,i]+=2*R*k[1]
     end
 end
 
 function dHdy!(h,m::Semiconductor14nr,k)
-    fill!(h,0.0)
+    copy!(h,m.Py)
 
-    h.+=m.Py
     for i=1:14
         h[i,i]+=2*R*k[2]
     end
 end
 
 function dHdz!(h,m::Semiconductor14nr,k)
-    fill!(h,0.0)
+    copy!(h,m.Pz)
 
-    h.+=m.Pz
     for i=1:14
         h[i,i]+=2*R*k[3]
     end
@@ -431,9 +428,7 @@ end
 d2Hdz2(m::Semiconductor)=d2Hdz2(m.params)
 
 function dHdx!(h,m::Semiconductor14,k)
-    fill!(h,0.0)
-
-    h.+=m.Px
+    copy!(h,m.Px)
 
     h[5,12]+=-sqrt(3)*m.params.Ck/2
     h[5,13]+=-m.params.Ck/2
@@ -446,9 +441,7 @@ function dHdx!(h,m::Semiconductor14,k)
 end
 
 function dHdy!(h,m::Semiconductor14,k)
-    fill!(h,0.0)
-
-    h.+=m.Py
+    copy!(h,m.Py)
 
     h[5,12]+=-1im*sqrt(3)*m.params.Ck/2
     h[5,13]+=1im*m.params.Ck/2
@@ -461,9 +454,7 @@ function dHdy!(h,m::Semiconductor14,k)
 end
 
 function dHdz!(h,m::Semiconductor14,k)
-    fill!(h,0.0)
-
-    h.+=m.Pz
+    copy!(h,m.Pz)
 
     h[5,6]+=-m.params.Ck
     h[12,13]+=-m.params.Ck

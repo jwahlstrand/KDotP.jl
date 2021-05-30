@@ -388,7 +388,7 @@ function init_spectrum(oaxis)
 end
 
 function Base.:+(a1::absorption_spectrum,a2::absorption_spectrum)
-    a=init_spectrum(a1.omega)
+    a=init_spectrum(a1.ħω)
     a.η .= a1.η .+ a2.η
     a
 end

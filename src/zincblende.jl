@@ -14,6 +14,21 @@ struct Parameters
     Ck::Float64
 end
 
+struct Parameters30 <: Parameters
+    P0::Float64
+    Pd::Float64
+    P2::Float64
+    P2d::Float64
+    P3::Float64
+    P3d::Float64
+    Ps::Float64
+    Qvc::Float64
+    Pu::Float64
+    Qcd::Float64
+end
+
+pMatrices30(params::Parameters30)=pMatrices30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd)
+
 function generate_px(params::Parameters)
     px=zeros(Complex{Float64},14,14)
 
@@ -132,6 +147,11 @@ struct Semiconductor14nr <: Semiconductor
     parabolic::Parabolic
 end
 
+struct Semiconductor30 <: Semiconductor
+    params::Parameters30
+    Px::Array{Complex{Float64},2}
+    Py::Array{Complex{Float64},2}
+
 function Semiconductor14(params::Parameters)
     px,py,pz=generate_px(params),generate_py(params),generate_pz(params)
     Px,Py,Pz=Hermitian(px),Hermitian(1im*py),Hermitian(pz)
@@ -146,6 +166,11 @@ function Semiconductor14nr(params::Parameters)
 end
 Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14nr(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 
+function Semiconductor30(params::Parameters30)
+    px,py=pMatrices30(params.P0,params.Pd,params.P2,params.P2d,params.P3,params.P3d,params.Ps,params.Qvc,params.Pu,params.Qcd)
+    return Semiconductor30(params,px,py)
+end
+Semiconductor30(P0::AbstractFloat,Pd::AbstractFloat,P2::AbstractFloat,P2d::AbstractFloat,P3::AbstractFloat,P3d::AbstractFloat,Ps::AbstractFloat,Qvc::AbstractFloat,Pu::AbstractFloat,Qcd::AbstractFloat)=Semiconductor30(Parameters30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd))
 const ϵ = 0.0
 
 # Hamiltonians and derivatives
@@ -296,6 +321,10 @@ function H(m::Semiconductor14,k)
     h.=h .+ m.Px .* k[1] .+ m.Py .* k[2] .+ m.Pz .* k[3]
 
     return Hermitian(h)
+end
+
+function H(m::Semiconductor30,k)
+    h=zeros(Complex{Float64},30,30)
 end
 
 

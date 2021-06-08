@@ -9,6 +9,7 @@ export ufunc, calc_u_coeffs
 
 include("vectors.jl")
 include("transforms.jl")
+include("generate_p.jl")
 
 const R = 3.80998 # ħ²/2mₑ in eV ⋅ Å²
 

@@ -6,7 +6,7 @@ pyplot() # or another backend
 plot()
 
 m=GaAs30()
-ks=-0.02:0.001:0.02
+ks=-1:0.01:1
 
 energies=zeros(Float64,length(ks),30)
 
@@ -19,4 +19,6 @@ for i=1:length(ks)
     energies[i,1:end].=ens
 end
 
-p=plot(ks,energies)
+p=plot(ks,energies[:,1:2:end],label=nothing)
+
+display(p)

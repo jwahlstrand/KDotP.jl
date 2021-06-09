@@ -28,7 +28,7 @@ dHdx(m::Model,k)=dHdi(m,k,dHdx!)
 dHdy(m::Model,k)=dHdi(m,k,dHdy!)
 dHdz(m::Model,k)=dHdi(m,k,dHdz!)
 
-export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe,GaAs_nr,InP,GaSb,InSb
+export Zincblende14,Zincblende14nr,Parabolic,Semiconductor,Semiconductor14,Semiconductor14nr,GaAs,ZnSe,GaAs_nr,InP,GaSb,InSb,GaAs30
 
 include("zincblende.jl")
 

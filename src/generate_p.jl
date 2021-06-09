@@ -285,12 +285,11 @@ py30(terms::Terms,args...)=sum(py30.(terms.terms,args...))
 function pMatrices30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd)
     px=zeros(ComplexF64,30,30)
     py=zeros(ComplexF64,30,30)
-    for i in range(1,30)
+    for i=1:30
         for j=1:30
             px[i,j]=ComplexF64(basis30[i]*px30(basis30[j],P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd))
             py[i,j]=ComplexF64(basis30[i]*py30(basis30[j],P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd))
         end
     end
+    px,py
 end
-
-px,py=pMatrices30(9.232,0.195,4.891,9.392,4.328,5.819,3.045,7.998,8.648,4.068)

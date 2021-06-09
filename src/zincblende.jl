@@ -14,7 +14,8 @@ struct Parameters
     Ck::Float64
 end
 
-struct Parameters30 <: Parameters
+#Uses the notation of Rioux and Sipe Table I
+struct Parameters30
     P0::Float64
     Pd::Float64
     P2::Float64
@@ -25,9 +26,21 @@ struct Parameters30 <: Parameters
     Qvc::Float64
     Pu::Float64
     Qcd::Float64
+    E7q::Float64
+    E8d::Float64
+    E3d::Float64
+    E6u::Float64
+    E8c::Float64
+    Edg::Float64
+    E6v::Float64
+    Dso::Float64
+    Dvd::Float64
+    Dc::Float64
+    Dd::Float64
+    D3c::Float64
 end
 
-pMatrices30(params::Parameters30)=pMatrices30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd)
+pMatrices30(params::Parameters30)=pMatrices30(params.P0,params.Pd,params.P2,params.P2d,params.P3,params.P3d,params.Ps,params.Qvc,params.Pu,params.Qcd)
 
 function generate_px(params::Parameters)
     px=zeros(Complex{Float64},14,14)
@@ -151,6 +164,7 @@ struct Semiconductor30 <: Semiconductor
     params::Parameters30
     Px::Array{Complex{Float64},2}
     Py::Array{Complex{Float64},2}
+end
 
 function Semiconductor14(params::Parameters)
     px,py,pz=generate_px(params),generate_py(params),generate_pz(params)
@@ -167,10 +181,10 @@ end
 Semiconductor14nr(Eg::AbstractFloat,D0::AbstractFloat,E0p::AbstractFloat,D0p::AbstractFloat,db::AbstractFloat,P0::AbstractFloat,Q::AbstractFloat,P0p::AbstractFloat,G1L::AbstractFloat,G2L::AbstractFloat,G3L::AbstractFloat,F::AbstractFloat,Ck::AbstractFloat)=Semiconductor14nr(Parameters(Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck))
 
 function Semiconductor30(params::Parameters30)
-    px,py=pMatrices30(params.P0,params.Pd,params.P2,params.P2d,params.P3,params.P3d,params.Ps,params.Qvc,params.Pu,params.Qcd)
-    return Semiconductor30(params,px,py)
+    px,py=pMatrices30(params) ############Should I multiply py by i like is done for Semiconductor14?
+    return Semiconductor30(params,Hermitian(px),Hermitian(py))
 end
-Semiconductor30(P0::AbstractFloat,Pd::AbstractFloat,P2::AbstractFloat,P2d::AbstractFloat,P3::AbstractFloat,P3d::AbstractFloat,Ps::AbstractFloat,Qvc::AbstractFloat,Pu::AbstractFloat,Qcd::AbstractFloat)=Semiconductor30(Parameters30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd))
+Semiconductor30(P0::AbstractFloat,Pd::AbstractFloat,P2::AbstractFloat,P2d::AbstractFloat,P3::AbstractFloat,P3d::AbstractFloat,Ps::AbstractFloat,Qvc::AbstractFloat,Pu::AbstractFloat,Qcd::AbstractFloat,E7q::AbstractFloat,E8d::AbstractFloat,E3d::AbstractFloat,E6u::AbstractFloat,E8c::AbstractFloat,Edg::AbstractFloat,E6v::AbstractFloat,Dso::AbstractFloat,Dvd::AbstractFloat,Dc::AbstractFloat,Dd::AbstractFloat=0.0,D3c::AbstractFloat=0.0)=Semiconductor30(Parameters30(P0,Pd,P2,P2d,P3,P3d,Ps,Qvc,Pu,Qcd,E7q,E8d,E3d,E6u,E8c,Edg,E6v,Dso,Dvd,Dc,Dd,D3c))
 const ϵ = 0.0
 
 # Hamiltonians and derivatives
@@ -325,6 +339,40 @@ end
 
 function H(m::Semiconductor30,k)
     h=zeros(Complex{Float64},30,30)
+
+    #Add diagonal elements in order of descending energy
+    h[1,1]=m.params.E7q
+    h[2,2]=h[1,1]
+    h[3,3]=m.params.E8d
+    h[4,4]=h[3,3]
+    h[5,5]=h[4,4]
+    h[6,6]=h[5,5]
+    h[7,7]=h[6,6]-m.params.Dd
+    h[8,8]=h[7,7]
+    h[9,9]=m.params.E3d
+    h[10,10]=h[9,9]
+    h[11,11]=h[10,10]
+    h[12,12]=h[11,11]
+    h[13,13]=m.params.E6u
+    h[14,14]=h[13,13]
+    h[15,15]=m.params.E8c
+    h[16,16]=h[15,15]
+    h[17,17]=h[16,16]
+    h[18,18]=h[17,17]
+    h[19,19]=h[18,18]-m.params.Dc
+    h[20,20]=h[19,19]
+    h[21,21]=m.params.Edg
+    h[22,22]=h[21,21]
+    #h[23,23]=0.0 Don't need to set this, but leaving it here to show
+    #h[25,25]=0.0
+    h[27,27]=-m.params.Dso
+    h[28,28]=h[27,27]
+    h[29,29]=m.params.E6v
+    h[30,30]=h[29,29]
+
+    h.=h .+ m.Px .* k[1] .+ m.Py .* k[2] #There's no Pz
+
+    return Hermitian(h)
 end
 
 
@@ -551,23 +599,7 @@ function trajectory_intersects_bad(m::Parabolic, kperp, g)
     return false
 end
 
-function H(m,k,params::Parameters)
-    P0=params.P0
-    Q=params.Q
-    P0p=params.P0p
-    Eg=params.Eg
-    E0p=params.E0p
-    D0=params.D0
-    D0p=params.D0p
-    G1L=params.G1L
-    G2L=params.G2L
-    G3L=params.G3L
-    F=params.F
-    db=params.db
-    Ck=params.Ck
-    return H(m,k)
-end
-
+##14 band models
 #Eg,D0,E0p,D0p,db,P0,Q,P0p,G1L,G2L,G3L,F,Ck
 GaAs()=Semiconductor14(1.519,0.341,4.488,0.171,-0.061,10.30,7.70,3.00,7.797,2.458,3.299,-1.055,-3.4)
 GaAs_nr()=Semiconductor14nr(1.519,0.341,4.488,0.171,0.0,10.30,7.70,3.00,-1.0,0.0,0.0,0.0,0.0)
@@ -575,3 +607,7 @@ ZnSe()=Semiconductor14(2.820,0.403,7.330,0.090,-0.238,10.628,9.845,9.165,4.30,1.
 InP()=Semiconductor14(1.424,0.108,4.6,0.50,0.22,8.65,7.24,4.30,5.05,1.6,1.73,0.0,-14)
 InSb()=Semiconductor14(0.235,0.803,3.39,0.39,-0.244,9.51,8.22,3.17,40.1,18.1,19.2,0.0,-9.2)
 GaSb()=Semiconductor14(0.813,0.75,3.3,0.33,-0.28,9.50,8.12,3.33,13.2,4.4,5.7,0.0,0.43)
+
+##30 band models
+#P0, Pd, P2, P2d, P3, P3d, Ps, Qvc, Pu, Qcd, E7q, E8d, E3d, E6u, E8c, Edg, E6v, Dso, Dvd, Dc, Dd, D3c
+GaAs30()=Semiconductor30(9.232,0.195,4.891,9.392,4.328,5.819,3.045,7.998,8.648,4.068,13.64,11.89,10.17,8.56,4.569,1.519,-12.55,0.341,0.211,0.081,0.0,0.0)

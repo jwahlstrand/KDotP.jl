@@ -31,6 +31,7 @@ for kx in loopRange
     for ky in loopRange
         kperp=@SVector [kx,ky,0.0]
         println(kperp)
+
         s=calc_u_coeffs(m,kperp,kdir,ks,abstol=1e-6)
         if s==nothing
             continue
